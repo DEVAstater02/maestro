@@ -1,0 +1,8 @@
+anthropic
+python-dotenv
+assemblyai
+pyaudio
+elevenlabs
+sounddevice
+scipy
+fastapi

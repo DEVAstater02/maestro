@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Interface</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            background: #f4f4f9;
+            margin: 0;
+            position: relative;
+        }
+
+        #mermaid-output {
+            width: 90%;
+            height: 70%;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            /* Remove padding and flex centering to allow full-size SVG */
+            padding: 0;
+            overflow: hidden;
+            /* Important for pan-zoom */
+            position: relative;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            z-index: 100;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #recordBtn {
+            background: #ff4b2b;
+            color: white;
+        }
+
+        #stopBtn {
+            background: #333;
+            color: white;
+        }
+
+        #status {
+            margin-top: 15px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .active {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="mermaid-output">
+        <!-- Mermaid diagrams will appear here -->
+        <p style="color: #ccc; text-align: center; vertical-align: center;">Visualizer will do its magic here</p>
+    </div>
+
+    <div class="controls">
+        <button id="recordBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop & Send</button>
+        <div id="status">Ready to connect...</div>
+    </div>
+
+    <script src="/static/frontend.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+
+</html>
