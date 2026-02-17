@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+import json
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
@@ -126,16 +127,38 @@ async def conversation_ws_handler(websocket : WebSocket):
                         USER_INPUT=transcribed_text,
                         TUTOR_RESPONSE=full_response
                     )
-                    mermaid_code = await claude_repo.generate_response(visualiser_to_llm)
-                    print(f"Generated Mermaid code: {mermaid_code}")
+                    raw_visualisation = await claude_repo.generate_response(visualiser_to_llm)
+                    print(f"Generated visualisation: {raw_visualisation[:200]}...")
                     
-                    # Send as JSON message
-                    if mermaid_code != "":
-                        await websocket.send_json({
-                            "type": "visualisation",
-                            "data": mermaid_code
-                        })
-                        print("Visualisation sent to client")
+                    if raw_visualisation and raw_visualisation.strip():
+                        # Strip markdown code block wrappers if present
+                        cleaned = raw_visualisation.strip()
+                        if cleaned.startswith("```"):
+                            # Remove ```json or ``` prefix and trailing ```
+                            lines = cleaned.split("\n")
+                            if lines[0].startswith("```"):
+                                lines = lines[1:]
+                            if lines and lines[-1].strip() == "```":
+                                lines = lines[:-1]
+                            cleaned = "\n".join(lines).strip()
+                        
+                        # Try to parse as structured JSON first
+                        try:
+                            vis_data = json.loads(cleaned)
+                            await websocket.send_json({
+                                "type": "visualisation",
+                                "format": "structured",
+                                "data": vis_data
+                            })
+                            print("Structured visualisation sent to client")
+                        except json.JSONDecodeError:
+                            # Fallback: treat as raw Mermaid code
+                            await websocket.send_json({
+                                "type": "visualisation",
+                                "format": "mermaid",
+                                "data": raw_visualisation.strip()
+                            })
+                            print("Raw Mermaid visualisation sent to client")
                     
                 except Exception as e:
                     print(f"Error generating visualisation: {e}")

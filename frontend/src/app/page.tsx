@@ -2,19 +2,22 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import mermaid from "mermaid";
+import EducationalCard, { type StructuredVis } from "./components/EducationalCard";
 
 /* ─── Types ─── */
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 type AppState = "idle" | "recording" | "sending" | "processing" | "receiving" | "speaking";
 
-interface DiagramEntry {
+interface CardEntry {
   id: string;
-  svgHtml: string;
   label: string;
+  format: "structured" | "mermaid";
+  data: StructuredVis;        // structured JSON from Claude
+  thumbnailSvg?: string;      // rendered SVG for thumbnail preview
   failed?: boolean;
 }
 
-/* ─── Icons (minimal, monochrome) ─── */
+/* ─── Icons ─── */
 const MicIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="2" width="6" height="12" rx="3" />
@@ -49,9 +52,9 @@ export default function Home() {
   const [appState, setAppState] = useState<AppState>("idle");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
 
-  /* ─── Diagram history ─── */
-  const [diagrams, setDiagrams] = useState<DiagramEntry[]>([]);
-  const [activeDiagramIndex, setActiveDiagramIndex] = useState(-1);
+  /* ─── Card history ─── */
+  const [cards, setCards] = useState<CardEntry[]>([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const lastTranscriptionRef = useRef("");
   const thumbnailStripRef = useRef<HTMLDivElement>(null);
 
@@ -68,49 +71,83 @@ export default function Home() {
     mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
   }, []);
 
-  /* ─── Truncate label helper ─── */
   const truncateLabel = (text: string, max = 32) =>
     text.length > max ? text.slice(0, max) + "…" : text;
 
-  /* ─── Render Mermaid → add to history ─── */
-  const renderDiagram = useCallback(async (code: string) => {
-    const label = truncateLabel(lastTranscriptionRef.current || "Diagram");
-
+  /* ─── Render a thumbnail SVG for a Mermaid code string ─── */
+  const renderThumbnailSvg = useCallback(async (mermaidCode: string): Promise<string> => {
     try {
-      const id = `mermaid-${Date.now()}`;
-      const { svg } = await mermaid.render(id, code);
-
-      const entry: DiagramEntry = { id, svgHtml: svg, label };
-      setDiagrams((prev) => {
-        const next = [...prev, entry];
-        setActiveDiagramIndex(next.length - 1);
-        return next;
-      });
+      const id = `thumb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const { svg } = await mermaid.render(id, mermaidCode);
+      return svg;
     } catch {
-      // Graceful error — add a failed entry so user sees something
-      const entry: DiagramEntry = {
-        id: `error-${Date.now()}`,
-        svgHtml: "",
-        label,
-        failed: true,
-      };
-      setDiagrams((prev) => {
-        const next = [...prev, entry];
-        setActiveDiagramIndex(next.length - 1);
-        return next;
-      });
+      return "";
     }
   }, []);
 
-  /* Auto-scroll thumbnail strip to end when new diagram added */
-  useEffect(() => {
-    if (thumbnailStripRef.current) {
-      thumbnailStripRef.current.scrollTo({
-        left: thumbnailStripRef.current.scrollWidth,
-        behavior: "smooth",
+  /* ─── Handle incoming visualisation ─── */
+  const handleVisualisation = useCallback(async (msg: { type: string; format?: string; data: unknown }) => {
+    const label = truncateLabel(lastTranscriptionRef.current || "Diagram");
+
+    if (msg.format === "structured" && typeof msg.data === "object" && msg.data !== null) {
+      // Structured JSON from Claude
+      const visData = msg.data as StructuredVis;
+      let thumbSvg = "";
+      if (visData.diagram) {
+        thumbSvg = await renderThumbnailSvg(visData.diagram);
+      }
+
+      const entry: CardEntry = {
+        id: `card-${Date.now()}`,
+        label: visData.title || label,
+        format: "structured",
+        data: visData,
+        thumbnailSvg: thumbSvg,
+      };
+
+      setCards((prev) => {
+        const next = [...prev, entry];
+        setActiveIndex(next.length - 1);
+        return next;
+      });
+    } else if (typeof msg.data === "string") {
+      // Raw Mermaid fallback
+      const mermaidCode = msg.data;
+      let thumbSvg = "";
+      let failed = false;
+
+      try {
+        const id = `mermaid-${Date.now()}`;
+        const { svg } = await mermaid.render(id, mermaidCode);
+        thumbSvg = svg;
+      } catch {
+        failed = true;
+      }
+
+      // Wrap raw Mermaid into a StructuredVis with just a diagram
+      const entry: CardEntry = {
+        id: `mermaid-${Date.now()}`,
+        label,
+        format: "mermaid",
+        data: { title: label, diagram: mermaidCode },
+        thumbnailSvg: thumbSvg,
+        failed,
+      };
+
+      setCards((prev) => {
+        const next = [...prev, entry];
+        setActiveIndex(next.length - 1);
+        return next;
       });
     }
-  }, [diagrams.length]);
+  }, [renderThumbnailSvg]);
+
+  /* Auto-scroll thumbnails */
+  useEffect(() => {
+    if (thumbnailStripRef.current) {
+      thumbnailStripRef.current.scrollTo({ left: thumbnailStripRef.current.scrollWidth, behavior: "smooth" });
+    }
+  }, [cards.length]);
 
   /* ─── Play audio ─── */
   const playAudio = useCallback(async (chunks: ArrayBuffer[]) => {
@@ -128,10 +165,7 @@ export default function Home() {
       source.start(0);
       setAppState("speaking");
       setStatus("Speaking");
-      source.onended = () => {
-        setAppState("idle");
-        setStatus("Ready");
-      };
+      source.onended = () => { setAppState("idle"); setStatus("Ready"); };
     } catch {
       setAppState("idle");
       setStatus("Audio playback error");
@@ -141,7 +175,6 @@ export default function Home() {
   /* ─── WebSocket ─── */
   const connectWS = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN) return;
-
     setConnectionStatus("connecting");
     setStatus("Connecting");
 
@@ -156,8 +189,11 @@ export default function Home() {
       if (typeof event.data === "string") {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === "visualisation" && msg.data) renderDiagram(msg.data);
-          else if (msg.type === "transcription" && msg.data) lastTranscriptionRef.current = msg.data;
+          if (msg.type === "visualisation" && msg.data) {
+            handleVisualisation(msg);
+          } else if (msg.type === "transcription" && msg.data) {
+            lastTranscriptionRef.current = msg.data;
+          }
         } catch { /* ignore */ }
         return;
       }
@@ -187,7 +223,7 @@ export default function Home() {
     };
 
     socketRef.current = ws;
-  }, [renderDiagram, playAudio]);
+  }, [handleVisualisation, playAudio]);
 
   useEffect(() => {
     connectWS();
@@ -241,9 +277,14 @@ export default function Home() {
   const isBusy = ["sending", "processing", "receiving", "speaking"].includes(appState);
   const canRecord = connectionStatus === "connected" && !isRecording && !isBusy;
 
-  const hasDiagrams = diagrams.length > 0;
-  const activeDiagram = hasDiagrams ? diagrams[activeDiagramIndex] : null;
-  const isLatest = activeDiagramIndex === diagrams.length - 1;
+  const dotColor =
+    connectionStatus === "connected" ? "bg-[var(--color-text)]" :
+    connectionStatus === "connecting" ? "bg-[var(--color-text-muted)]" :
+    "bg-[var(--color-text-muted)]";
+
+  const hasCards = cards.length > 0;
+  const activeCard = hasCards ? cards[activeIndex] : null;
+  const isLatest = activeIndex === cards.length - 1;
 
   return (
     <div className="flex flex-col h-screen bg-white">
@@ -255,11 +296,7 @@ export default function Home() {
           <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">voice tutor</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`w-1.5 h-1.5 rounded-full ${
-            connectionStatus === "connected" ? "bg-[var(--color-text)]" :
-            connectionStatus === "connecting" ? "bg-[var(--color-text-muted)]" :
-            "bg-[var(--color-text-muted)]"
-          }`} />
+          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
           <span className="text-[11px] text-[var(--color-text-muted)]">
             {connectionStatus === "connected" ? "Connected" :
              connectionStatus === "connecting" ? "Connecting" : "Offline"}
@@ -270,12 +307,11 @@ export default function Home() {
       {/* ─── Main Content ─── */}
       <main className="flex-1 overflow-hidden flex flex-col">
 
-        {/* ─── Diagram Viewer ─── */}
+        {/* ─── Card Viewer ─── */}
         <div className="flex-1 overflow-hidden relative">
-          {activeDiagram ? (
+          {activeCard ? (
             <div className="animate-fade-in w-full h-full">
-              {activeDiagram.failed ? (
-                /* ─── Error state ─── */
+              {activeCard.failed ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="text-center max-w-sm px-6">
                     <div className="w-10 h-10 rounded-full border border-[var(--color-border)] flex items-center justify-center mx-auto mb-4">
@@ -283,37 +319,32 @@ export default function Home() {
                     </div>
                     <p className="text-sm font-medium mb-1">Diagram couldn&apos;t render</p>
                     <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                      The AI generated a diagram with syntax errors. This happens occasionally — try asking again.
+                      The AI generated a diagram with syntax errors. Try asking again.
                     </p>
                   </div>
                 </div>
               ) : (
-                /* ─── SVG diagram ─── */
-                <div
-                  className="w-full h-full p-8 overflow-auto flex items-center justify-center"
-                  dangerouslySetInnerHTML={{ __html: activeDiagram.svgHtml }}
-                />
+                <EducationalCard data={activeCard.data} cardId={activeCard.id} />
               )}
 
               {/* Jump to latest */}
               {!isLatest && (
                 <button
-                  onClick={() => setActiveDiagramIndex(diagrams.length - 1)}
-                  className="absolute top-4 right-4 h-8 px-3 bg-[var(--color-text)] text-white text-[11px] font-medium rounded-full flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                  onClick={() => setActiveIndex(cards.length - 1)}
+                  className="absolute top-4 right-4 h-8 px-3 bg-[var(--color-text)] text-white text-[11px] font-medium rounded-full flex items-center gap-1.5 hover:opacity-80 transition-opacity z-10"
                 >
                   <ArrowUpIcon /> Latest
                 </button>
               )}
 
-              {/* Position */}
-              <div className="absolute bottom-4 left-4 text-[11px] text-[var(--color-text-muted)]">
-                {activeDiagramIndex + 1} / {diagrams.length}
+              {/* Position indicator */}
+              <div className="absolute bottom-4 left-4 text-[11px] text-[var(--color-text-muted)] z-10">
+                {activeIndex + 1} / {cards.length}
                 <span className="mx-1.5">·</span>
-                {activeDiagram.label}
+                {activeCard.label}
               </div>
             </div>
           ) : (
-            /* ─── Empty state ─── */
             <div className="w-full h-full flex items-center justify-center animate-float">
               <div className="text-center max-w-xs px-6">
                 <p className="text-[13px] text-[var(--color-text-muted)] leading-relaxed">
@@ -325,44 +356,45 @@ export default function Home() {
         </div>
 
         {/* ─── Thumbnail Strip ─── */}
-        {diagrams.length > 1 && (
+        {cards.length > 1 && (
           <div className="border-t border-[var(--color-border-subtle)]">
-            <div
-              ref={thumbnailStripRef}
-              className="flex gap-2 px-6 py-3 overflow-x-auto scrollbar-thin"
-            >
-              {diagrams.map((d, i) => (
+            <div ref={thumbnailStripRef} className="flex gap-2 px-6 py-3 overflow-x-auto scrollbar-thin">
+              {cards.map((c, i) => (
                 <button
-                  key={d.id}
-                  onClick={() => setActiveDiagramIndex(i)}
+                  key={c.id}
+                  onClick={() => setActiveIndex(i)}
                   className={`flex-shrink-0 rounded-lg border transition-all duration-150 overflow-hidden relative group
-                    ${i === activeDiagramIndex
+                    ${i === activeIndex
                       ? "border-[var(--color-text)] shadow-sm"
                       : "border-[var(--color-border)] hover:border-[var(--color-text-secondary)]"
                     }`}
                   style={{ width: 100, height: 60 }}
                 >
-                  {d.failed ? (
+                  {c.failed ? (
                     <div className="w-full h-full flex items-center justify-center bg-[var(--color-surface-alt)]">
                       <AlertIcon />
                     </div>
-                  ) : (
+                  ) : c.thumbnailSvg ? (
                     <div
                       className="w-full h-full flex items-center justify-center bg-white overflow-hidden pointer-events-none"
                       style={{ transform: "scale(0.2)", transformOrigin: "center center", width: "500%", height: "500%", marginLeft: "-200%", marginTop: "-200%" }}
-                      dangerouslySetInnerHTML={{ __html: d.svgHtml }}
+                      dangerouslySetInnerHTML={{ __html: c.thumbnailSvg }}
                     />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-[var(--color-surface-alt)]">
+                      <span className="text-[9px] text-[var(--color-text-muted)] px-2 text-center truncate">{c.label}</span>
+                    </div>
                   )}
 
-                  {/* Number */}
+                  {/* Number badge */}
                   <span className={`absolute top-1 left-1 text-[9px] font-medium px-1 rounded
-                    ${i === activeDiagramIndex ? "bg-[var(--color-text)] text-white" : "bg-[var(--color-surface-alt)] text-[var(--color-text-muted)]"}`}>
+                    ${i === activeIndex ? "bg-[var(--color-text)] text-white" : "bg-[var(--color-surface-alt)] text-[var(--color-text-muted)]"}`}>
                     {i + 1}
                   </span>
 
-                  {/* Label on hover */}
+                  {/* Hover label */}
                   <div className="absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/50 to-transparent px-1.5 py-1">
-                    <span className="text-[9px] text-white block truncate">{d.label}</span>
+                    <span className="text-[9px] text-white block truncate">{c.label}</span>
                   </div>
                 </button>
               ))}
@@ -374,8 +406,6 @@ export default function Home() {
       {/* ─── Controls ─── */}
       <div className="border-t border-[var(--color-border)] px-6 py-5">
         <div className="flex flex-col items-center gap-3">
-
-          {/* Record button */}
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={!canRecord && !isRecording}
@@ -395,7 +425,6 @@ export default function Home() {
             </span>
           </button>
 
-          {/* Status */}
           <div className="flex items-center gap-2 h-5">
             {isBusy && (
               <span className="flex items-center gap-1">
