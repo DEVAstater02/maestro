@@ -4,6 +4,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from app.prompts.prompts import TEST_PROMPT
 from app.prompts.visualiser import VISUALISER_PROMPT
 import time
@@ -14,6 +15,15 @@ from app.repositories import claude, elevenlabs, assemblyai_repo
 load_dotenv()
 
 app = FastAPI(title="Voice AI Tutor")
+
+# CORS middleware for Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_dir = os.path.join(current_dir, "static")
@@ -64,6 +74,12 @@ async def conversation_ws_handler(websocket : WebSocket):
             transcribed_text = elevenlabs_repo.transcribe_audio(file_name)
             end_time = time.perf_counter()
             print(f"Time taken by STT : {(end_time-start_time):.4f} seconds")
+
+            # Send transcription to the frontend for diagram labels
+            await websocket.send_json({
+                "type": "transcription",
+                "data": transcribed_text
+            })
 
             start_time = time.perf_counter()
             # 4 - Stream the response from LLM and convert to speech in real-time

@@ -4,7 +4,7 @@ import io
 
 class ElevenLabsRepository:
     def __init__(self):
-        self.api_key = os.getenv("ELEVEN_LABS")
+        self.api_key = os.getenv("ELEVENLABS_API_KEY")
         if not self.api_key:
             raise ValueError("ELEVENLABS_API_KEY environment variable not set.")
         self.client = ElevenLabsClient(api_key=self.api_key)
