@@ -3,9 +3,9 @@ import assemblyai as aai
 
 class AssemblyAI:
     def __init__(self):
-        self.api_key = os.getenv("ASSEMBLYAI_API_KEY")
+        self.api_key = os.getenv("ASSEMBLY_AI")
         if not self.api_key:
-            raise ValueError("ASSEMBLYAI_API_KEY environment variable not set.")
+            raise ValueError("ASSEMBLY_AI environment variable not set in .env")
         aai.settings.api_key = self.api_key
 
     async def transcribe_audio_file(self, audio_file_path: str) -> str:

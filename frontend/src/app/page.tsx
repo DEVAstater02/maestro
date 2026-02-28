@@ -158,7 +158,26 @@ export default function Home() {
     try {
       const blob = new Blob(chunks);
       const arrayBuf = await blob.arrayBuffer();
-      const audioBuf = await ctx.decodeAudioData(arrayBuf);
+
+      // Clone the buffer because decodeAudioData detaches the buffer it receives
+      const arrayBufCopy = arrayBuf.slice(0);
+
+      let audioBuf: AudioBuffer;
+      try {
+        // Try decoding as standard containerised audio (MP3, WAV, etc)
+        audioBuf = await ctx.decodeAudioData(arrayBuf);
+      } catch (decodeError) {
+        console.warn("Standard audio decoding failed, attempting to parse as raw PCM f32le 44.1kHz...", decodeError);
+
+        // Use the CLONED buffer here (the original is detached now)
+        const floatData = new Float32Array(arrayBufCopy);
+
+        // We assume 44100Hz and Mono (1 channel) for most TTS
+        const sampleRate = 44100;
+        audioBuf = ctx.createBuffer(1, floatData.length, sampleRate);
+        audioBuf.getChannelData(0).set(floatData);
+      }
+
       const source = ctx.createBufferSource();
       source.buffer = audioBuf;
       source.connect(ctx.destination);
@@ -166,7 +185,8 @@ export default function Home() {
       setAppState("speaking");
       setStatus("Speaking");
       source.onended = () => { setAppState("idle"); setStatus("Ready"); };
-    } catch {
+    } catch (finalError) {
+      console.error("Final audio playback error:", finalError);
       setAppState("idle");
       setStatus("Audio playback error");
     }
@@ -279,8 +299,8 @@ export default function Home() {
 
   const dotColor =
     connectionStatus === "connected" ? "bg-[var(--color-text)]" :
-    connectionStatus === "connecting" ? "bg-[var(--color-text-muted)]" :
-    "bg-[var(--color-text-muted)]";
+      connectionStatus === "connecting" ? "bg-[var(--color-text-muted)]" :
+        "bg-[var(--color-text-muted)]";
 
   const hasCards = cards.length > 0;
   const activeCard = hasCards ? cards[activeIndex] : null;
@@ -299,7 +319,7 @@ export default function Home() {
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
           <span className="text-[11px] text-[var(--color-text-muted)]">
             {connectionStatus === "connected" ? "Connected" :
-             connectionStatus === "connecting" ? "Connecting" : "Offline"}
+              connectionStatus === "connecting" ? "Connecting" : "Offline"}
           </span>
         </div>
       </header>

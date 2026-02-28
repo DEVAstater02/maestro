@@ -39,6 +39,10 @@ def sanitize_mermaid(diagram: str) -> str:
         sanitized.append(line)
 
     return "\n".join(sanitized)
+from app.repositories import claude
+from app.services.stt_service import STTService
+from app.services.tts_service import TTSService
+from app.services.visualizer_service import VisualizerService
 
 # Load environment variables from .env file at the very beginning
 # This makes all variables in .env available via os.getenv()
@@ -86,14 +90,14 @@ async def conversation_ws_handler(websocket : WebSocket):
     print("Client Connected")
 
     messages = []
-    elevenlabs_repo = elevenlabs.ElevenLabsRepository()
-    stt = assemblyai_repo.AssemblyAI()
+    tts_service = TTSService()
+    stt_service = STTService()
     llm_repo = get_llm_repository()
+    claude_repo = claude.ClaudeRepository()
+    visualizer_service = VisualizerService(claude_repo)
 
     try:
         while True:
-
-
             # 1 - wait for user audio
             raw_voice_data = await websocket.receive_bytes()
             
@@ -111,7 +115,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             start_time = time.perf_counter()
             # 3 - Send audio file to STT API to get the transcript
             
-            transcribed_text = elevenlabs_repo.transcribe_audio(file_name)
+            transcribed_text = await stt_service.transcribe(file_name, provider="cartesia")
             end_time = time.perf_counter()
             print(f"Time taken by STT : {(end_time-start_time):.4f} seconds")
 
@@ -138,17 +142,11 @@ async def conversation_ws_handler(websocket : WebSocket):
             # 5 - Stream TTS audio chunks to the client in real-time
             try:
                 # Stream audio chunks as they're generated from the text stream
-                chunk_count = 0
-                async for full_text, audio_chunk in elevenlabs_repo.stream_speech_from_text_stream(text_stream):
+                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia"):
                     # Store the full text (will be the same for all chunks)
                     full_response = full_text
                     
-                    # Send audio chunk to client
-                    chunk_count += 1
-                    print(f"Sending audio chunk {chunk_count}, size: {len(audio_chunk)} bytes")
                     await websocket.send_bytes(audio_chunk)
-                
-                print(f"Total audio chunks sent: {chunk_count}")
                 
                 # Update conversation history
                 messages.append({"role": "user", "input": transcribed_text})
@@ -157,7 +155,6 @@ async def conversation_ws_handler(websocket : WebSocket):
                 end_time = time.perf_counter()
                 print(f"Time taken by streaming LLM + TTS : {(end_time-start_time):.4f} seconds")
                 print(f"Full response: {full_response}")
-                print("Streaming speech generation complete")
                 
                 # 6 - Generate and send Visualisation
                 try:
@@ -212,6 +209,15 @@ async def conversation_ws_handler(websocket : WebSocket):
                             "data": vis_data
                         })
                         print("Structured visualisation sent to client")
+
+                    # visualization_payload = await visualizer_service.generate_visualisation(
+                    #     user_input=transcribed_text,
+                    #     tutor_response=full_response
+                    # )
+                    
+                    # if visualization_payload:
+                    #     await websocket.send_json(visualization_payload)
+                    #     print(f"{visualization_payload['format'].capitalize()} visualisation sent to client")
                     
                 except Exception as e:
                     print(f"Error generating visualisation: {e}")
