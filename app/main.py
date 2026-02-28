@@ -10,7 +10,9 @@ from app.prompts.prompts import TEST_PROMPT
 from app.prompts.visualiser import VISUALISER_PROMPT
 import time
 from app.repositories import claude, gemini, elevenlabs, assemblyai_repo
-
+from app.services.stt_service import STTService
+from app.services.tts_service import TTSService
+from app.services.visualizer_service import VisualizerService
 
 def sanitize_mermaid(diagram: str) -> str:
     """Fix common Mermaid syntax issues that LLMs produce."""
@@ -39,10 +41,6 @@ def sanitize_mermaid(diagram: str) -> str:
         sanitized.append(line)
 
     return "\n".join(sanitized)
-from app.repositories import claude
-from app.services.stt_service import STTService
-from app.services.tts_service import TTSService
-from app.services.visualizer_service import VisualizerService
 
 # Load environment variables from .env file at the very beginning
 # This makes all variables in .env available via os.getenv()
@@ -76,8 +74,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
 
 # You can now access any environment variable loaded from .env generically.
 # For example, to get a variable named 'MY_GENERIC_KEY':
