@@ -27,7 +27,15 @@ class Example(BaseModel):
 
 class VisualisationResponse(BaseModel):
     title: str = Field(description="Short descriptive title of the concept being visualised")
-    diagram: str = Field(description="Valid Mermaid.js diagram code. Use ONLY: graph TD, sequenceDiagram, classDiagram, or stateDiagram-v2. ALWAYS quote all node labels with double quotes e.g. A[\"Label\"]. Use \\n to separate lines. Keep to 4-8 nodes.")
+    diagram: str = Field(description=(
+        "Valid Mermaid.js diagram code. Choose the best type: "
+        "flowchart TD/LR (for algorithms, processes, decisions), "
+        "sequenceDiagram (for component interactions, API flows), "
+        "classDiagram (for OOP design, domain models), or "
+        "stateDiagram-v2 (for state machines, lifecycles). "
+        "ALWAYS quote all node labels: A[\"Label\"], B{{\"Decision\"}}. "
+        "Use \\n to separate lines. Keep to 4-10 nodes."
+    ))
     explanation: Optional[ExplanationBlock] = Field(default=None, description="Code explanation block with pseudocode")
     keyPoints: Optional[List[KeyPoint]] = Field(default=None, description="2-3 key concepts that aid understanding")
     examples: Optional[List[Example]] = Field(default=None, description="Concrete examples with input/output, only if pedagogically useful")

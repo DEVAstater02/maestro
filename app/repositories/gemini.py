@@ -60,7 +60,7 @@ class GeminiRepository:
                 model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    max_output_tokens=2048,
+                    max_output_tokens=8192,
                     response_mime_type="application/json",
                     response_json_schema=response_schema.model_json_schema(),
                 ),
