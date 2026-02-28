@@ -6,3 +6,4 @@ elevenlabs
 sounddevice
 scipy
 fastapi
+cartesia

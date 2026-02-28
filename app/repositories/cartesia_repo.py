@@ -1,0 +1,96 @@
+import os
+import io
+from cartesia import Cartesia
+
+class CartesiaRepository:
+    def __init__(self):
+        """
+        Initialize the Cartesia repository with the API key from environment variables.
+        """
+        self.api_key = os.getenv("CARTESIA_API_KEY")
+        if not self.api_key:
+            # Check for alternative env var name if necessary
+            self.api_key = os.getenv("CARTESIA_API")
+            
+        if not self.api_key:
+            raise ValueError("CARTESIA_API_KEY environment variable not set in .env")
+            
+        self.client = Cartesia(api_key=self.api_key)
+
+    def text_to_speech(self, text: str, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-english") -> bytes:
+        """
+        Convert text to speech using Cartesia's Sonic model.
+        
+        Args:
+            text (str): The text to convert to speech.
+            voice_id (str): The voice ID to use (default: British Female).
+            model_id (str): The model ID to use (default: sonic-english).
+            
+        Returns:
+            bytes: Audio data in wav format.
+        """
+        if not text:
+            raise ValueError("Text cannot be empty.")
+            
+        try:
+            # Generate audio bytes
+            # Cartesia's tts.bytes returns the full audio content
+            audio_bytes = self.client.tts.bytes(
+                model_id=model_id,
+                transcript=text,
+                voice_id=voice_id,
+                output_format={
+                    "container": "wav",
+                    "encoding": "pcm_f32le",
+                    "sample_rate": 44100
+                }
+            )
+            
+            return audio_bytes
+                
+        except Exception as e:
+            print(f"Cartesia TTS Error: {e}")
+            raise
+
+    def speech_to_text(self, audio_file_path: str, model_id: str = "ink-whisper") -> str:
+        """
+        Convert speech to text using Cartesia's Ink model.
+        
+        Args:
+            audio_file_path (str): Path to the audio file to transcribe.
+            model_id (str): The model ID to use (default: ink-whisper).
+            
+        Returns:
+            str: The transcribed text.
+        """
+        if not audio_file_path:
+            raise ValueError("Audio file path cannot be empty.")
+        
+        if not os.path.exists(audio_file_path):
+            raise ValueError(f"Audio file not found at: {audio_file_path}")
+            
+        try:
+            with open(audio_file_path, "rb") as audio_file:
+                audio_data = audio_file.read()
+            
+            # Use the STT transcribe method
+            response = self.client.stt.transcribe(
+                model_id=model_id,
+                audio=audio_data,
+                language="en"
+            )
+            
+            return response.transcript
+                
+        except Exception as e:
+            print(f"Cartesia STT Error: {e}")
+            raise
+
+# Example of how to use (for testing purposes)
+if __name__ == "__main__":
+    # This is just a placeholder example
+    try:
+        repo = CartesiaRepository()
+        print("Cartesia Repository initialized successfully.")
+    except Exception as e:
+        print(f"Initialization failed: {e}")

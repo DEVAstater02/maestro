@@ -4,9 +4,9 @@ import io
 
 class ElevenLabsRepository:
     def __init__(self):
-        self.api_key = os.getenv("ELEVENLABS_API_KEY")
+        self.api_key = os.getenv("ELEVEN_LABS")
         if not self.api_key:
-            raise ValueError("ELEVENLABS_API_KEY environment variable not set.")
+            raise ValueError("ELEVEN_LABS environment variable not set in .env")
         self.client = ElevenLabsClient(api_key=self.api_key)
 
     def generate_speech(self, text: str, voice_id: str = "21m00Tcm4TlvDq8ikWAM"):

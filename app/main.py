@@ -9,7 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.prompts.prompts import TEST_PROMPT
 from app.prompts.visualiser import VISUALISER_PROMPT
 import time
-from app.repositories import claude, elevenlabs, assemblyai_repo
+from app.repositories import claude, elevenlabs
+from app.services.stt_service import STTService
+from app.services.visualizer_service import VisualizerService
 
 # Load environment variables from .env file at the very beginning
 # This makes all variables in .env available via os.getenv()
@@ -48,8 +50,9 @@ async def conversation_ws_handler(websocket : WebSocket):
 
     messages = []
     elevenlabs_repo = elevenlabs.ElevenLabsRepository()
-    stt = assemblyai_repo.AssemblyAI()
+    stt_service = STTService()
     claude_repo = claude.ClaudeRepository()
+    visualizer_service = VisualizerService(claude_repo)
 
     try:
         while True:
@@ -72,7 +75,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             start_time = time.perf_counter()
             # 3 - Send audio file to STT API to get the transcript
             
-            transcribed_text = elevenlabs_repo.transcribe_audio(file_name)
+            transcribed_text = await stt_service.transcribe(file_name, provider="elevenlabs")
             end_time = time.perf_counter()
             print(f"Time taken by STT : {(end_time-start_time):.4f} seconds")
 
@@ -99,17 +102,11 @@ async def conversation_ws_handler(websocket : WebSocket):
             # 5 - Stream TTS audio chunks to the client in real-time
             try:
                 # Stream audio chunks as they're generated from the text stream
-                chunk_count = 0
                 async for full_text, audio_chunk in elevenlabs_repo.stream_speech_from_text_stream(text_stream):
                     # Store the full text (will be the same for all chunks)
                     full_response = full_text
                     
-                    # Send audio chunk to client
-                    chunk_count += 1
-                    print(f"Sending audio chunk {chunk_count}, size: {len(audio_chunk)} bytes")
                     await websocket.send_bytes(audio_chunk)
-                
-                print(f"Total audio chunks sent: {chunk_count}")
                 
                 # Update conversation history
                 messages.append({"role": "user", "input": transcribed_text})
@@ -118,47 +115,17 @@ async def conversation_ws_handler(websocket : WebSocket):
                 end_time = time.perf_counter()
                 print(f"Time taken by streaming LLM + TTS : {(end_time-start_time):.4f} seconds")
                 print(f"Full response: {full_response}")
-                print("Streaming speech generation complete")
                 
                 # 6 - Generate and send Visualisation
                 try:
-                    print("Generating visualisation...")
-                    visualiser_to_llm = VISUALISER_PROMPT.format(
-                        USER_INPUT=transcribed_text,
-                        TUTOR_RESPONSE=full_response
+                    visualization_payload = await visualizer_service.generate_visualisation(
+                        user_input=transcribed_text,
+                        tutor_response=full_response
                     )
-                    raw_visualisation = await claude_repo.generate_response(visualiser_to_llm)
-                    print(f"Generated visualisation: {raw_visualisation[:200]}...")
                     
-                    if raw_visualisation and raw_visualisation.strip():
-                        # Strip markdown code block wrappers if present
-                        cleaned = raw_visualisation.strip()
-                        if cleaned.startswith("```"):
-                            # Remove ```json or ``` prefix and trailing ```
-                            lines = cleaned.split("\n")
-                            if lines[0].startswith("```"):
-                                lines = lines[1:]
-                            if lines and lines[-1].strip() == "```":
-                                lines = lines[:-1]
-                            cleaned = "\n".join(lines).strip()
-                        
-                        # Try to parse as structured JSON first
-                        try:
-                            vis_data = json.loads(cleaned)
-                            await websocket.send_json({
-                                "type": "visualisation",
-                                "format": "structured",
-                                "data": vis_data
-                            })
-                            print("Structured visualisation sent to client")
-                        except json.JSONDecodeError:
-                            # Fallback: treat as raw Mermaid code
-                            await websocket.send_json({
-                                "type": "visualisation",
-                                "format": "mermaid",
-                                "data": raw_visualisation.strip()
-                            })
-                            print("Raw Mermaid visualisation sent to client")
+                    if visualization_payload:
+                        await websocket.send_json(visualization_payload)
+                        print(f"{visualization_payload['format'].capitalize()} visualisation sent to client")
                     
                 except Exception as e:
                     print(f"Error generating visualisation: {e}")
