@@ -1,5 +1,5 @@
 from app.repositories.elevenlabs import ElevenLabsRepository
-from app.repositories.cartesia_repo import CartesiaRepository
+from app.repositories.cartesia import CartesiaRepository
 from app.repositories.assemblyai_repo import AssemblyAI
 import os
 

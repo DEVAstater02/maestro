@@ -52,6 +52,55 @@ class CartesiaRepository:
             print(f"Cartesia TTS Error: {e}")
             raise
 
+    async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-english"):
+        """
+        Generate speech from a streaming text source using Cartesia's Sonic model.
+        This method consumes text chunks from an async generator, collects the full text,
+        and then streams the audio chunks back.
+        
+        Args:
+            text_stream: An async generator that yields text chunks (e.g., from Claude).
+            voice_id (str): The voice ID to use.
+            model_id (str): The model ID to use.
+            
+        Yields:
+            tuple: (full_text, audio_chunk) - The complete text and audio data chunks.
+        """
+        try:
+            # Collect all text chunks first to ensure smooth, continuous audio
+            full_text = ""
+            async for text_chunk in text_stream:
+                full_text += text_chunk
+            
+            if full_text.strip():
+                print(f"Cartesia: Generating speech for collected text ({len(full_text)} chars)")
+                
+                # Cartesia's SSE method returns a generator that yields audio chunks
+                # We use 'wav' container for compatibility, though 'raw' is also possible
+                response = self.client.tts.sse(
+                    model_id=model_id,
+                    transcript=full_text.strip(),
+                    voice_id=voice_id,
+                    output_format={
+                        "container": "wav",
+                        "encoding": "pcm_f32le",
+                        "sample_rate": 44100
+                    }
+                )
+                
+                chunk_num = 0
+                for chunk in response:
+                    # Each chunk has an 'audio' field containing the bytes
+                    if chunk.get("audio"):
+                        chunk_num += 1
+                        yield (full_text, chunk["audio"])
+                
+                print(f"Cartesia finished streaming {chunk_num} total chunks")
+                    
+        except Exception as e:
+            print(f"Cartesia API Error during streaming TTS: {e}")
+            raise
+
     def speech_to_text(self, audio_file_path: str, model_id: str = "ink-whisper") -> str:
         """
         Convert speech to text using Cartesia's Ink model.

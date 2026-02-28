@@ -9,8 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.prompts.prompts import TEST_PROMPT
 from app.prompts.visualiser import VISUALISER_PROMPT
 import time
-from app.repositories import claude, elevenlabs
+from app.repositories import claude
 from app.services.stt_service import STTService
+from app.services.tts_service import TTSService
 from app.services.visualizer_service import VisualizerService
 
 # Load environment variables from .env file at the very beginning
@@ -49,15 +50,13 @@ async def conversation_ws_handler(websocket : WebSocket):
     print("Client Connected")
 
     messages = []
-    elevenlabs_repo = elevenlabs.ElevenLabsRepository()
+    tts_service = TTSService()
     stt_service = STTService()
     claude_repo = claude.ClaudeRepository()
     visualizer_service = VisualizerService(claude_repo)
 
     try:
         while True:
-
-
             # 1 - wait for user audio
             raw_voice_data = await websocket.receive_bytes()
             
@@ -75,7 +74,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             start_time = time.perf_counter()
             # 3 - Send audio file to STT API to get the transcript
             
-            transcribed_text = await stt_service.transcribe(file_name, provider="elevenlabs")
+            transcribed_text = await stt_service.transcribe(file_name, provider="cartesia")
             end_time = time.perf_counter()
             print(f"Time taken by STT : {(end_time-start_time):.4f} seconds")
 
@@ -102,7 +101,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             # 5 - Stream TTS audio chunks to the client in real-time
             try:
                 # Stream audio chunks as they're generated from the text stream
-                async for full_text, audio_chunk in elevenlabs_repo.stream_speech_from_text_stream(text_stream):
+                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia"):
                     # Store the full text (will be the same for all chunks)
                     full_response = full_text
                     
