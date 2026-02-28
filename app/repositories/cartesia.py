@@ -33,20 +33,19 @@ class CartesiaRepository:
             raise ValueError("Text cannot be empty.")
             
         try:
-            # Generate audio bytes
-            # Cartesia's tts.bytes returns the full audio content
-            audio_bytes = self.client.tts.bytes(
+            # Cartesia's tts.bytes returns an iterator of audio chunks
+            audio_chunks = self.client.tts.bytes(
                 model_id=model_id,
                 transcript=text,
-                voice_id=voice_id,
+                voice={"mode": "id", "id": voice_id},
                 output_format={
-                    "container": "wav",
+                    "container": "raw",
                     "encoding": "pcm_f32le",
                     "sample_rate": 44100
                 }
             )
             
-            return audio_bytes
+            return b"".join(audio_chunks)
                 
         except Exception as e:
             print(f"Cartesia TTS Error: {e}")
@@ -80,9 +79,9 @@ class CartesiaRepository:
                 response = self.client.tts.sse(
                     model_id=model_id,
                     transcript=full_text.strip(),
-                    voice_id=voice_id,
+                    voice={"mode": "id", "id": voice_id},
                     output_format={
-                        "container": "wav",
+                        "container": "raw",
                         "encoding": "pcm_f32le",
                         "sample_rate": 44100
                     }
@@ -90,10 +89,10 @@ class CartesiaRepository:
                 
                 chunk_num = 0
                 for chunk in response:
-                    # Each chunk has an 'audio' field containing the bytes
-                    if chunk.get("audio"):
+                    # Each chunk is an object with a 'type' and potentially an 'audio' property
+                    if hasattr(chunk, "audio") and chunk.audio is not None:
                         chunk_num += 1
-                        yield (full_text, chunk["audio"])
+                        yield (full_text, chunk.audio)
                 
                 print(f"Cartesia finished streaming {chunk_num} total chunks")
                     
@@ -124,12 +123,12 @@ class CartesiaRepository:
             
             # Use the STT transcribe method
             response = self.client.stt.transcribe(
-                model_id=model_id,
-                audio=audio_data,
+                model=model_id,
+                file=audio_data,
                 language="en"
             )
             
-            return response.transcript
+            return response.text
                 
         except Exception as e:
             print(f"Cartesia STT Error: {e}")

@@ -49,7 +49,7 @@ class TTSService:
         elif provider == "cartesia":
             async for data in self.cartesia_repo.stream_speech_from_text_stream(
                 text_stream, 
-                voice_id=voice_id or "a0e99829-1bb2-4353-9d43-352c75535515"
+                voice_id=voice_id or "a33f7a4c-100f-41cf-a1fd-5822e8fc253f"
             ):
                 yield data
         else:
