@@ -1,19 +1,66 @@
 from dotenv import load_dotenv
 import os
 import json
+import re
 import uvicorn
 from fastapi import FastAPI, WebSocket
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+
 from fastapi.middleware.cors import CORSMiddleware
 from app.prompts.prompts import TEST_PROMPT
 from app.prompts.visualiser import VISUALISER_PROMPT
 import time
-from app.repositories import claude, elevenlabs, assemblyai_repo
+from app.repositories import claude, gemini, elevenlabs, assemblyai_repo
+
+
+def sanitize_mermaid(diagram: str) -> str:
+    """Fix common Mermaid syntax issues that LLMs produce."""
+    if not diagram:
+        return diagram
+
+    lines = diagram.split("\n")
+    sanitized = []
+
+    for line in lines:
+        # Fix unquoted labels in square brackets: A[Label Text] -> A["Label Text"]
+        # But skip already-quoted labels: A["Label Text"]
+        line = re.sub(
+            r'\[([^\]"]+)\]',
+            lambda m: f'["{m.group(1)}"]' if not m.group(1).startswith('"') else m.group(0),
+            line
+        )
+        
+        # Fix unquoted labels in arrow labels: -->|label| -> -->|"label"|
+        line = re.sub(
+            r'\|([^"|]+)\|',
+            lambda m: f'|"{m.group(1)}"|',
+            line
+        )
+
+        sanitized.append(line)
+
+    return "\n".join(sanitized)
 
 # Load environment variables from .env file at the very beginning
 # This makes all variables in .env available via os.getenv()
 load_dotenv()
+
+# ─── LLM Provider Toggle ───────────────────────────────────────────
+# Set LLM_PROVIDER in your .env file to switch between providers.
+# Supported values: "claude" (default), "gemini"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "claude").lower()
+print(f"[Maestro] Using LLM provider: {LLM_PROVIDER}")
+
+def get_llm_repository():
+    """Factory function that returns the correct LLM repository based on LLM_PROVIDER."""
+    if LLM_PROVIDER == "gemini":
+        return gemini.GeminiRepository()
+    elif LLM_PROVIDER == "claude":
+        return claude.ClaudeRepository()
+    else:
+        raise ValueError(
+            f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
+            "Supported values: 'claude', 'gemini'"
+        )
 
 app = FastAPI(title="Voice AI Tutor")
 
@@ -26,15 +73,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-static_dir = os.path.join(current_dir, "static")
 
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-@app.get("/")
-async def read_index():
-    static_file = os.path.join(static_dir, "index.html")
-    return FileResponse(static_file)
 
 # You can now access any environment variable loaded from .env generically.
 # For example, to get a variable named 'MY_GENERIC_KEY':
@@ -49,7 +88,7 @@ async def conversation_ws_handler(websocket : WebSocket):
     messages = []
     elevenlabs_repo = elevenlabs.ElevenLabsRepository()
     stt = assemblyai_repo.AssemblyAI()
-    claude_repo = claude.ClaudeRepository()
+    llm_repo = get_llm_repository()
 
     try:
         while True:
@@ -85,8 +124,8 @@ async def conversation_ws_handler(websocket : WebSocket):
             start_time = time.perf_counter()
             # 4 - Stream the response from LLM and convert to speech in real-time
             
-            # Get the streaming text response from Claude
-            text_stream = claude_repo.stream_response(
+            # Get the streaming text response from LLM
+            text_stream = llm_repo.stream_response(
                 prompt=TEST_PROMPT.format(
                     CHAT_HISTORY=format_history(messages), 
                     USER_INPUT=transcribed_text
@@ -127,38 +166,52 @@ async def conversation_ws_handler(websocket : WebSocket):
                         USER_INPUT=transcribed_text,
                         TUTOR_RESPONSE=full_response
                     )
-                    raw_visualisation = await claude_repo.generate_response(visualiser_to_llm)
-                    print(f"Generated visualisation: {raw_visualisation[:200]}...")
                     
-                    if raw_visualisation and raw_visualisation.strip():
-                        # Strip markdown code block wrappers if present
-                        cleaned = raw_visualisation.strip()
-                        if cleaned.startswith("```"):
-                            # Remove ```json or ``` prefix and trailing ```
-                            lines = cleaned.split("\n")
-                            if lines[0].startswith("```"):
-                                lines = lines[1:]
-                            if lines and lines[-1].strip() == "```":
-                                lines = lines[:-1]
-                            cleaned = "\n".join(lines).strip()
+                    vis_data = None
+                    
+                    # Use structured output if the LLM repo supports it (Gemini)
+                    if hasattr(llm_repo, 'generate_structured_response'):
+                        from app.models.user_models import VisualisationResponse
+                        result = await llm_repo.generate_structured_response(
+                            prompt=visualiser_to_llm,
+                            response_schema=VisualisationResponse,
+                        )
+                        if result:
+                            vis_data = result.model_dump(exclude_none=True)
+                            print(f"Structured output from Gemini: {vis_data.get('title', 'N/A')}")
+                    else:
+                        # Fallback for Claude: parse raw text as JSON
+                        raw_visualisation = await llm_repo.generate_response(visualiser_to_llm)
+                        print(f"Generated visualisation: {raw_visualisation[:200]}...")
                         
-                        # Try to parse as structured JSON first
-                        try:
-                            vis_data = json.loads(cleaned)
-                            await websocket.send_json({
-                                "type": "visualisation",
-                                "format": "structured",
-                                "data": vis_data
-                            })
-                            print("Structured visualisation sent to client")
-                        except json.JSONDecodeError:
-                            # Fallback: treat as raw Mermaid code
-                            await websocket.send_json({
-                                "type": "visualisation",
-                                "format": "mermaid",
-                                "data": raw_visualisation.strip()
-                            })
-                            print("Raw Mermaid visualisation sent to client")
+                        if raw_visualisation and raw_visualisation.strip():
+                            cleaned = raw_visualisation.strip()
+                            if cleaned.startswith("```"):
+                                lines = cleaned.split("\n")
+                                if lines[0].startswith("```"):
+                                    lines = lines[1:]
+                                if lines and lines[-1].strip() == "```":
+                                    lines = lines[:-1]
+                                cleaned = "\n".join(lines).strip()
+                            try:
+                                vis_data = json.loads(cleaned)
+                            except json.JSONDecodeError:
+                                print("JSON parse failed for visualisation")
+                    
+                    # Sanitize the Mermaid diagram regardless of source
+                    if vis_data and "diagram" in vis_data and vis_data["diagram"]:
+                        original = vis_data["diagram"]
+                        vis_data["diagram"] = sanitize_mermaid(original)
+                        if original != vis_data["diagram"]:
+                            print(f"Sanitized diagram: {vis_data['diagram'][:100]}...")
+                    
+                    if vis_data:
+                        await websocket.send_json({
+                            "type": "visualisation",
+                            "format": "structured",
+                            "data": vis_data
+                        })
+                        print("Structured visualisation sent to client")
                     
                 except Exception as e:
                     print(f"Error generating visualisation: {e}")
