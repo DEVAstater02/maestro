@@ -7,40 +7,13 @@ from fastapi import FastAPI, WebSocket
 
 from fastapi.middleware.cors import CORSMiddleware
 from app.prompts.prompts import TEST_PROMPT
-from app.prompts.visualiser import VISUALISER_PROMPT
+from app.prompts.session_memory import SESSION_MEMORY_PROMPT
 import time
 from app.repositories import claude, gemini, elevenlabs, assemblyai_repo
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
 from app.services.visualizer_service import VisualizerService
 
-def sanitize_mermaid(diagram: str) -> str:
-    """Fix common Mermaid syntax issues that LLMs produce."""
-    if not diagram:
-        return diagram
-
-    lines = diagram.split("\n")
-    sanitized = []
-
-    for line in lines:
-        # Fix unquoted labels in square brackets: A[Label Text] -> A["Label Text"]
-        # But skip already-quoted labels: A["Label Text"]
-        line = re.sub(
-            r'\[([^\]"]+)\]',
-            lambda m: f'["{m.group(1)}"]' if not m.group(1).startswith('"') else m.group(0),
-            line
-        )
-        
-        # Fix unquoted labels in arrow labels: -->|label| -> -->|"label"|
-        line = re.sub(
-            r'\|([^"|]+)\|',
-            lambda m: f'|"{m.group(1)}"|',
-            line
-        )
-
-        sanitized.append(line)
-
-    return "\n".join(sanitized)
 
 # Load environment variables from .env file at the very beginning
 # This makes all variables in .env available via os.getenv()
@@ -89,8 +62,10 @@ async def conversation_ws_handler(websocket : WebSocket):
     tts_service = TTSService()
     stt_service = STTService()
     llm_repo = get_llm_repository()
-    claude_repo = claude.ClaudeRepository()
-    visualizer_service = VisualizerService(claude_repo)
+    visualizer_service = VisualizerService(llm_repo)
+
+    SESSION_MEMORY = ""
+    TURN_COUNTER = 0
 
     try:
         while True:
@@ -127,6 +102,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             # Get the streaming text response from LLM
             text_stream = llm_repo.stream_response(
                 prompt=TEST_PROMPT.format(
+                    SESSION_MEMORY=SESSION_MEMORY,
                     CHAT_HISTORY=format_history(messages), 
                     USER_INPUT=transcribed_text
                 )
@@ -154,69 +130,24 @@ async def conversation_ws_handler(websocket : WebSocket):
                 
                 # 6 - Generate and send Visualisation
                 try:
-                    print("Generating visualisation...")
-                    visualiser_to_llm = VISUALISER_PROMPT.format(
-                        USER_INPUT=transcribed_text,
-                        TUTOR_RESPONSE=full_response
+                    visualization_payload = await visualizer_service.generate_visualisation(
+                        user_input=transcribed_text,
+                        tutor_response=full_response
                     )
                     
-                    vis_data = None
-                    
-                    # Use structured output if the LLM repo supports it (Gemini)
-                    if hasattr(llm_repo, 'generate_structured_response'):
-                        from app.models.user_models import VisualisationResponse
-                        result = await llm_repo.generate_structured_response(
-                            prompt=visualiser_to_llm,
-                            response_schema=VisualisationResponse,
-                        )
-                        if result:
-                            vis_data = result.model_dump(exclude_none=True)
-                            print(f"Structured output from Gemini: {vis_data.get('title', 'N/A')}")
-                    else:
-                        # Fallback for Claude: parse raw text as JSON
-                        raw_visualisation = await llm_repo.generate_response(visualiser_to_llm)
-                        print(f"Generated visualisation: {raw_visualisation[:200]}...")
-                        
-                        if raw_visualisation and raw_visualisation.strip():
-                            cleaned = raw_visualisation.strip()
-                            if cleaned.startswith("```"):
-                                lines = cleaned.split("\n")
-                                if lines[0].startswith("```"):
-                                    lines = lines[1:]
-                                if lines and lines[-1].strip() == "```":
-                                    lines = lines[:-1]
-                                cleaned = "\n".join(lines).strip()
-                            try:
-                                vis_data = json.loads(cleaned)
-                            except json.JSONDecodeError:
-                                print("JSON parse failed for visualisation")
-                    
-                    # Sanitize the Mermaid diagram regardless of source
-                    if vis_data and "diagram" in vis_data and vis_data["diagram"]:
-                        original = vis_data["diagram"]
-                        vis_data["diagram"] = sanitize_mermaid(original)
-                        if original != vis_data["diagram"]:
-                            print(f"Sanitized diagram: {vis_data['diagram'][:100]}...")
-                    
-                    if vis_data:
-                        await websocket.send_json({
-                            "type": "visualisation",
-                            "format": "structured",
-                            "data": vis_data
-                        })
-                        print("Structured visualisation sent to client")
-
-                    # visualization_payload = await visualizer_service.generate_visualisation(
-                    #     user_input=transcribed_text,
-                    #     tutor_response=full_response
-                    # )
-                    
-                    # if visualization_payload:
-                    #     await websocket.send_json(visualization_payload)
-                    #     print(f"{visualization_payload['format'].capitalize()} visualisation sent to client")
+                    if visualization_payload:
+                        await websocket.send_json(visualization_payload)
                     
                 except Exception as e:
                     print(f"Error generating visualisation: {e}")
+
+                TURN_COUNTER += 1
+                TURN_COUNTER, SESSION_MEMORY = await update_memory(
+                    messages=messages, 
+                    TURN_COUNTER=TURN_COUNTER, 
+                    SESSION_MEMORY=SESSION_MEMORY, 
+                    llm_repo=llm_repo
+                )
 
             except ValueError as e:
                 print(f"Error during streaming speech generation: {e}")
@@ -236,6 +167,33 @@ def format_history(conversation_array : dict):
 
     return formatted_str
 
+async def update_memory(messages : list, TURN_COUNTER : int, SESSION_MEMORY : str, llm_repo):
+    if TURN_COUNTER == 10 :
+        print("[Maestro] Updating session memory...")
+        TURN_COUNTER = 0
+
+        prompt = SESSION_MEMORY_PROMPT.format(
+            CURRENT_SESSION_MEMORY=SESSION_MEMORY,
+            CONVERSATION_MESSAGES=format_history(messages)
+        )
+        
+        response = await llm_repo.generate_response(prompt=prompt)
+        
+        # Extract content between <updated_session_memory> tags
+        match = re.search(r'<updated_session_memory>(.*?)</updated_session_memory>', response, re.DOTALL)
+        if match:
+            SESSION_MEMORY = match.group(1).strip()
+            print("[Maestro] Session memory updated.")
+        else:
+            # Fallback if tags are missing but there's content
+            SESSION_MEMORY = response.strip()
+            print("[Maestro] Session memory updated (tags missing).")
+        
+        # Keep only the last 5 messages to save context space, 
+        # as the previous context is now in SESSION_MEMORY
+        messages[:] = messages[-5:]
+    
+    return TURN_COUNTER, SESSION_MEMORY
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
