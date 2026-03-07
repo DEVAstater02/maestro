@@ -73,6 +73,7 @@ async def conversation_ws_handler(websocket : WebSocket):
         print(f"[Maestro] DB session started: {session_id}")
     except Exception as e:
         print(f"[Maestro] WARNING – could not create DB session: {e}")
+        raise e
         session_id = None  # continue in-memory only if DB is unavailable
 
     SESSION_MEMORY = ""
