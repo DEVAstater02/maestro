@@ -14,10 +14,11 @@ from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
 from app.services.visualizer_service import VisualizerService
 
-
 # Load environment variables from .env file at the very beginning
-# This makes all variables in .env available via os.getenv()
+from app.database import init_db
+
 load_dotenv()
+init_db()
 
 # ─── LLM Provider Toggle ───────────────────────────────────────────
 # Set LLM_PROVIDER in your .env file to switch between providers.
@@ -114,7 +115,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             # 5 - Stream TTS audio chunks to the client in real-time
             try:
                 # Stream audio chunks as they're generated from the text stream
-                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia"):
+                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia", speed=float(0.7)):
                     # Store the full text (will be the same for all chunks)
                     full_response = full_text
                     
