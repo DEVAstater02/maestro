@@ -17,7 +17,7 @@ class CartesiaRepository:
             
         self.client = Cartesia(api_key=self.api_key)
 
-    def text_to_speech(self, text: str, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-english") -> bytes:
+    def text_to_speech(self, text: str, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-english", speed: float = 1.0) -> bytes:
         """
         Convert text to speech using Cartesia's Sonic model.
         
@@ -25,6 +25,7 @@ class CartesiaRepository:
             text (str): The text to convert to speech.
             voice_id (str): The voice ID to use (default: British Female).
             model_id (str): The model ID to use (default: sonic-english).
+            speed (float): The speed of the speech (0.6 to 1.5).
             
         Returns:
             bytes: Audio data in wav format.
@@ -42,6 +43,9 @@ class CartesiaRepository:
                     "container": "raw",
                     "encoding": "pcm_f32le",
                     "sample_rate": 44100
+                },
+                generation_config={
+                    "speed": speed
                 }
             )
             
@@ -51,7 +55,7 @@ class CartesiaRepository:
             print(f"Cartesia TTS Error: {e}")
             raise
 
-    async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-english"):
+    async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-english", speed: float = 1.0):
         """
         Generate speech from a streaming text source using Cartesia's Sonic model.
         This method consumes text chunks from an async generator, collects the full text,
@@ -61,6 +65,7 @@ class CartesiaRepository:
             text_stream: An async generator that yields text chunks (e.g., from Claude).
             voice_id (str): The voice ID to use.
             model_id (str): The model ID to use.
+            speed (float): The speed of the speech (0.6 to 1.5).
             
         Yields:
             tuple: (full_text, audio_chunk) - The complete text and audio data chunks.
@@ -72,7 +77,7 @@ class CartesiaRepository:
                 full_text += text_chunk
             
             if full_text.strip():
-                print(f"Cartesia: Generating speech for collected text ({len(full_text)} chars)")
+                print(f"Cartesia: Generating speech for collected text ({len(full_text)} chars) at speed {speed}")
                 
                 # Cartesia's SSE method returns a generator that yields audio chunks
                 # We use 'wav' container for compatibility, though 'raw' is also possible
@@ -84,6 +89,9 @@ class CartesiaRepository:
                         "container": "raw",
                         "encoding": "pcm_f32le",
                         "sample_rate": 44100
+                    },
+                    generation_config={
+                        "speed": speed
                     }
                 )
                 

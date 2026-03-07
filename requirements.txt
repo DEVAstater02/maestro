@@ -8,3 +8,6 @@ sounddevice
 scipy
 fastapi
 cartesia
+sqlmodel
+pymysql
+cryptography

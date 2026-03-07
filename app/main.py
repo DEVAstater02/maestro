@@ -10,14 +10,16 @@ from app.prompts.prompts import TEST_PROMPT
 from app.prompts.session_memory import SESSION_MEMORY_PROMPT
 import time
 from app.repositories import claude, gemini, elevenlabs, assemblyai_repo
+from app.repositories.persistence_repo import PersistenceRepository
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
 from app.services.visualizer_service import VisualizerService
 
-
 # Load environment variables from .env file at the very beginning
-# This makes all variables in .env available via os.getenv()
+from app.database import init_db
+
 load_dotenv()
+init_db()
 
 # ─── LLM Provider Toggle ───────────────────────────────────────────
 # Set LLM_PROVIDER in your .env file to switch between providers.
@@ -63,6 +65,16 @@ async def conversation_ws_handler(websocket : WebSocket):
     stt_service = STTService()
     llm_repo = get_llm_repository()
     visualizer_service = VisualizerService(llm_repo)
+    persistence_repo = PersistenceRepository()
+
+    # ── Create a new DB session row for this WebSocket connection ────────────
+    try:
+        session_id = persistence_repo.create_session()
+        print(f"[Maestro] DB session started: {session_id}")
+    except Exception as e:
+        print(f"[Maestro] WARNING – could not create DB session: {e}")
+        raise e
+        session_id = None  # continue in-memory only if DB is unavailable
 
     SESSION_MEMORY = ""
     TURN_COUNTER = 0
@@ -114,7 +126,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             # 5 - Stream TTS audio chunks to the client in real-time
             try:
                 # Stream audio chunks as they're generated from the text stream
-                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia"):
+                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia", speed=float(0.7)):
                     # Store the full text (will be the same for all chunks)
                     full_response = full_text
                     
@@ -143,10 +155,12 @@ async def conversation_ws_handler(websocket : WebSocket):
 
                 TURN_COUNTER += 1
                 TURN_COUNTER, SESSION_MEMORY = await update_memory(
-                    messages=messages, 
-                    TURN_COUNTER=TURN_COUNTER, 
-                    SESSION_MEMORY=SESSION_MEMORY, 
-                    llm_repo=llm_repo
+                    messages=messages,
+                    TURN_COUNTER=TURN_COUNTER,
+                    SESSION_MEMORY=SESSION_MEMORY,
+                    llm_repo=llm_repo,
+                    session_id=session_id,
+                    persistence_repo=persistence_repo,
                 )
 
             except ValueError as e:
@@ -167,8 +181,15 @@ def format_history(conversation_array : dict):
 
     return formatted_str
 
-async def update_memory(messages : list, TURN_COUNTER : int, SESSION_MEMORY : str, llm_repo):
-    if TURN_COUNTER == 10 :
+async def update_memory(
+    messages: list,
+    TURN_COUNTER: int,
+    SESSION_MEMORY: str,
+    llm_repo,
+    session_id: str | None = None,
+    persistence_repo: "PersistenceRepository | None" = None,
+):
+    if TURN_COUNTER == 10:
         print("[Maestro] Updating session memory...")
         TURN_COUNTER = 0
 
@@ -176,9 +197,9 @@ async def update_memory(messages : list, TURN_COUNTER : int, SESSION_MEMORY : st
             CURRENT_SESSION_MEMORY=SESSION_MEMORY,
             CONVERSATION_MESSAGES=format_history(messages)
         )
-        
+
         response = await llm_repo.generate_response(prompt=prompt)
-        
+
         # Extract content between <updated_session_memory> tags
         match = re.search(r'<updated_session_memory>(.*?)</updated_session_memory>', response, re.DOTALL)
         if match:
@@ -188,11 +209,25 @@ async def update_memory(messages : list, TURN_COUNTER : int, SESSION_MEMORY : st
             # Fallback if tags are missing but there's content
             SESSION_MEMORY = response.strip()
             print("[Maestro] Session memory updated (tags missing).")
-        
-        # Keep only the last 5 messages to save context space, 
+
+        # ── Persist to DB (only when a valid session_id is available) ────────
+        if session_id and persistence_repo:
+            try:
+                # 1. Persist the new session memory string
+                persistence_repo.update_session_memory(session_id, SESSION_MEMORY)
+
+                # 2. Upsert the messages being evicted from the in-memory array.
+                #    We keep the last 5 in RAM; everything before that goes to DB.
+                evicted_messages = messages[:-5] if len(messages) > 5 else messages[:]
+                if evicted_messages:
+                    persistence_repo.upsert_conversation_history(session_id, evicted_messages)
+            except Exception as e:
+                print(f"[Maestro] WARNING – persistence error during update_memory: {e}")
+
+        # Keep only the last 5 messages to save context space,
         # as the previous context is now in SESSION_MEMORY
         messages[:] = messages[-5:]
-    
+
     return TURN_COUNTER, SESSION_MEMORY
 
 if __name__ == "__main__":
