@@ -1,53 +1,170 @@
-from sqlmodel import Session, select
-from app.models.database_models import Session as DBSession, Message as DBMessage
+"""
+PersistenceRepository
+─────────────────────
+Encapsulates all MySQL I/O for the tutor's session-persistence layer.
+
+Tables used (defined in tables.sql):
+  • users          – student profiles
+  • sessions       – per-session state (memory string, chapter index …)
+  • conversations  – JSON history blob for a session
+"""
+
+import json
+import uuid
 from typing import List, Optional
-from datetime import datetime
+
+from app.database import get_connection
+
+
+# ── A fixed "anonymous" user that every WebSocket session is linked to ────────
+# Replace with real auth once a user-management layer exists.
+ANONYMOUS_USER_ID   = "00000000-0000-0000-0000-000000000000"
+ANONYMOUS_USER_NAME = "anonymous"
+
 
 class PersistenceRepository:
-    def __init__(self, db_session: Session):
-        self.db = db_session
+    """
+    All methods are synchronous (pymysql is blocking).
+    Call them from async handlers with `asyncio.to_thread(...)` if needed,
+    or just call directly – the DB round-trips are fast enough for our load.
 
-    def create_session(self, session_id: str) -> DBSession:
-        new_session = DBSession(session_id=session_id)
-        self.db.add(new_session)
-        self.db.commit()
-        self.db.refresh(new_session)
-        return new_session
+    Each public method opens its own connection and closes it when done so
+    that we never hold a connection idle across long-running WebSocket turns.
+    """
 
-    def get_session(self, session_id: str) -> Optional[DBSession]:
-        statement = select(DBSession).where(DBSession.session_id == session_id)
-        results = self.db.exec(statement)
-        return results.first()
+    # ─────────────────────────────────────────────────────────────────────────
+    # Session creation
+    # ─────────────────────────────────────────────────────────────────────────
 
-    def update_session(self, session_id: str, memory: str, turn_counter: int):
-        db_session = self.get_session(session_id)
-        if db_session:
-            db_session.memory = memory
-            db_session.turn_counter = turn_counter
-            db_session.updated_at = datetime.utcnow()
-            self.db.add(db_session)
-            self.db.commit()
-            self.db.refresh(db_session)
-        return db_session
+    def create_session(self, user_id: Optional[str] = None) -> str:
+        """
+        1. Ensure the user row exists (create anonymous user on first run).
+        2. Insert a new row into `sessions`.
+        3. Return the new session UUID.
+        """
+        if user_id is None:
+            user_id = ANONYMOUS_USER_ID
 
-    def add_message(self, session_id: str, role: str, content: str):
-        db_session = self.get_session(session_id)
-        if db_session:
-            new_message = DBMessage(
-                session_id=db_session.id,
-                role=role,
-                content=content
+        session_id = str(uuid.uuid4())
+
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                # Ensure the user exists
+                cur.execute(
+                    "INSERT IGNORE INTO users (id, name) VALUES (%s, %s)",
+                    (user_id, ANONYMOUS_USER_NAME),
+                )
+
+                # Create the session row
+                cur.execute(
+                    """
+                    INSERT INTO sessions (id, user_id, syllabus_id, session_memory_string)
+                    VALUES (%s, %s, NULL, NULL)
+                    """,
+                    (session_id, user_id),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] Session created: {session_id}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR creating session: {e}")
+            raise
+        finally:
+            conn.close()
+
+        return session_id
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Memory persistence
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def update_session_memory(self, session_id: str, memory_string: str) -> None:
+        """Update the `session_memory_string` column for the given session."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE sessions
+                       SET session_memory_string = %s
+                     WHERE id = %s
+                    """,
+                    (memory_string, session_id),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] session_memory_string updated for session {session_id}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR updating session memory: {e}")
+            raise
+        finally:
+            conn.close()
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Conversation history upsert
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def upsert_conversation_history(
+        self,
+        session_id: str,
+        new_messages: List[dict],
+    ) -> None:
+        """
+        UPSERT the `conversations` table for this session.
+
+        Strategy:
+          • If no row exists yet → INSERT with `new_messages` as the history.
+          • If a row exists → merge: existing_history + new_messages, then UPDATE.
+
+        `new_messages` are the messages being *evicted* from the in-memory
+        `messages` array during `update_memory` (i.e. everything except the
+        last 5 turns that get kept in RAM).
+        """
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                # Fetch existing history (if any)
+                cur.execute(
+                    "SELECT history FROM conversations WHERE session_id = %s",
+                    (session_id,),
+                )
+                row = cur.fetchone()
+
+                if row is None:
+                    # First time – INSERT
+                    cur.execute(
+                        """
+                        INSERT INTO conversations (session_id, history)
+                        VALUES (%s, %s)
+                        """,
+                        (session_id, json.dumps(new_messages)),
+                    )
+                else:
+                    # Merge existing + new
+                    existing: list = (
+                        row["history"]
+                        if isinstance(row["history"], list)
+                        else json.loads(row["history"])
+                    )
+                    merged = existing + new_messages
+                    cur.execute(
+                        """
+                        UPDATE conversations
+                           SET history = %s
+                         WHERE session_id = %s
+                        """,
+                        (json.dumps(merged), session_id),
+                    )
+
+            conn.commit()
+            print(
+                f"[PersistenceRepo] Conversation history upserted for session {session_id} "
+                f"(+{len(new_messages)} messages)"
             )
-            self.db.add(new_message)
-            self.db.commit()
-            self.db.refresh(new_message)
-        return db_session
-
-    def get_messages(self, session_id: str, limit: int = 10) -> List[DBMessage]:
-        db_session = self.get_session(session_id)
-        if db_session:
-            statement = select(DBMessage).where(DBMessage.session_id == db_session.id).order_by(DBMessage.created_at.desc()).limit(limit)
-            results = self.db.exec(statement)
-            # return in chronological order
-            return sorted(results.all(), key=lambda x: x.created_at)
-        return []
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR upserting conversation history: {e}")
+            raise
+        finally:
+            conn.close()
