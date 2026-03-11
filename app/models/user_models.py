@@ -39,4 +39,8 @@ class VisualisationResponse(BaseModel):
     explanation: Optional[ExplanationBlock] = Field(default=None, description="Code explanation block with pseudocode")
     keyPoints: Optional[List[KeyPoint]] = Field(default=None, description="2-3 key concepts that aid understanding")
     examples: Optional[List[Example]] = Field(default=None, description="Concrete examples with input/output, only if pedagogically useful")
-    footnote: Optional[str] = Field(default=None, description="Optional additional context or caveat")
+
+class SyllabusRequest(BaseModel):
+    topic: str
+    user_persona: str
+    subject: str

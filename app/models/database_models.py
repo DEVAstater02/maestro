@@ -16,7 +16,15 @@ class UserRecord:
     """Mirrors the `users` table."""
     id: str                          # CHAR(36) UUID
     name: str
+    learning_style: str = "Direct"
+    reasoning_speed: str = "Moderate"
+    analogy_pool: Optional[Any] = None  # JSON
+    knowledge_map: Any = field(default_factory=dict)  # JSON
+    last_updated: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    dob: Optional[datetime] = None
+    grade: Optional[str] = None
+    interests: Optional[str] = None
 
 
 @dataclass

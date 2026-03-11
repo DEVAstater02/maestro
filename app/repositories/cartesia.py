@@ -55,7 +55,7 @@ class CartesiaRepository:
             print(f"Cartesia TTS Error: {e}")
             raise
 
-    async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-english", speed: float = 1.0):
+    async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-3", speed: float = 1.0):
         """
         Generate speech from a streaming text source using Cartesia's Sonic model.
         This method consumes text chunks from an async generator, collects the full text,
@@ -77,7 +77,7 @@ class CartesiaRepository:
                 full_text += text_chunk
             
             if full_text.strip():
-                print(f"Cartesia: Generating speech for collected text ({len(full_text)} chars) at speed {speed}")
+                # print(f"Cartesia: Generating speech for collected text ({len(full_text)} chars) at speed {speed}")
                 
                 # Cartesia's SSE method returns a generator that yields audio chunks
                 # We use 'wav' container for compatibility, though 'raw' is also possible
@@ -98,7 +98,7 @@ class CartesiaRepository:
                 chunk_num = 0
                 for chunk in response:
                     # Each chunk is an object with a 'type' and potentially an 'audio' property
-                    if hasattr(chunk, "audio") and chunk.audio is not None:
+                    if hasattr(chunk, "audio") and chunk.audio is not None and len(chunk.audio) > 0:
                         chunk_num += 1
                         yield (full_text, chunk.audio)
                 
