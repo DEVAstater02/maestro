@@ -116,7 +116,7 @@ export default function PanZoomViewer({ svgHtml, diagramId }: PanZoomViewerProps
       </div>
 
       {/* Zoom controls — bottom right */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-white border border-[var(--color-border)] rounded-lg shadow-sm overflow-hidden">
+      <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-sm overflow-hidden">
         <button
           onClick={zoomOut}
           className="w-8 h-8 flex items-center justify-center hover:bg-[var(--color-surface-alt)] transition-colors"

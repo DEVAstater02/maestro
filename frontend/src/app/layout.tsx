@@ -7,13 +7,15 @@ export const metadata: Metadata = {
     "A real-time voice-based AI tutor for Computer Science, powered by Claude and ElevenLabs.",
 };
 
+import { Providers } from "./providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -26,7 +28,11 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <Providers>
+          {children}
+        </Providers>
+      </body>
     </html>
   );
 }

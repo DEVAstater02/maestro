@@ -6,6 +6,8 @@ import AuthScreen from "./components/AuthScreen";
 
 type FlowState = "loading" | "auth" | "splash" | "curation" | "learning";
 
+import { ThemeToggle } from "./components/ThemeToggle";
+
 export default function App() {
   const [flow, setFlow] = useState<FlowState>("loading");
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -183,7 +185,7 @@ export default function App() {
   // ── Loading screen ───────────────────────────────────────────────────────
   if (flow === "loading") {
     return (
-      <div className="h-screen flex items-center justify-center bg-white">
+      <div className="h-screen flex items-center justify-center bg-[var(--color-bg)]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-[var(--color-text)] border-t-transparent rounded-full animate-spin" />
           <p className="text-xs text-[var(--color-text-muted)]">Loading maestro...</p>
@@ -200,7 +202,7 @@ export default function App() {
   // ── Splash (start learning) ──────────────────────────────────────────────
   if (flow === "splash") {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-white p-6">
+      <div className="h-screen flex flex-col items-center justify-center bg-[var(--color-bg)] p-6">
         {/* Header with user info + sign out */}
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
           <span className="text-base font-semibold tracking-tight">maestro</span>
@@ -210,6 +212,7 @@ export default function App() {
                 Hi, <span className="font-medium text-[var(--color-text)]">{userName}</span>
               </span>
             )}
+            <ThemeToggle />
             <button
               id="sign-out-btn"
               onClick={handleSignOut}
@@ -252,7 +255,7 @@ export default function App() {
             id="start-learning-btn"
             onClick={startCuration}
             disabled={!topic}
-            className="w-full py-4 bg-[var(--color-text)] text-white rounded-full font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="w-full py-4 bg-[var(--color-text)] text-[var(--color-bg)] rounded-full font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Start Learning
           </button>
@@ -264,7 +267,7 @@ export default function App() {
   // ── Curation screen ──────────────────────────────────────────────────────
   if (flow === "curation") {
     return (
-      <div className="h-screen flex flex-col bg-white">
+      <div className="h-screen flex flex-col bg-[var(--color-bg)]">
         <header className="flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-2.5">
             <span className="text-base font-semibold tracking-tight">maestro</span>
@@ -298,7 +301,7 @@ export default function App() {
               className={`w-20 h-20 rounded-full flex items-center justify-center transition-all 
                 ${isRecording ? 'bg-red-500 scale-110' : 'bg-[var(--color-text)]'} 
                 ${curationStatus !== "waiting_for_input" ? 'opacity-20 cursor-not-allowed grayscale' : 'opacity-100'} 
-                text-white shadow-xl relative`}
+                text-[var(--color-bg)] shadow-xl relative`}
             >
               {isRecording && <span className="absolute inset-0 rounded-full bg-red-500 animate-pulse-ring opacity-50" />}
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

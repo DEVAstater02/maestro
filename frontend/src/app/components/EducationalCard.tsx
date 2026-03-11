@@ -69,7 +69,7 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
 
           {/* Left: Diagram */}
           {hasDiagram && (
-            <div className="bg-white min-h-[280px] relative">
+            <div className="bg-[var(--color-bg)] min-h-[280px] relative">
               {diagramError ? (
                 <div className="w-full h-full flex items-center justify-center p-6">
                   <p className="text-xs text-[var(--color-text-muted)]">Diagram could not render</p>
@@ -90,7 +90,7 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
 
           {/* Right: Explanation / Code */}
           {hasExplanation && (
-            <div className="bg-white p-5 relative">
+            <div className="bg-[var(--color-bg)] p-5 relative">
               <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
                 {data.explanation!.heading}
               </span>
@@ -124,7 +124,7 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
             {data.keyPoints.map((kp, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-[var(--color-border)] bg-white p-4"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4"
               >
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text)] mb-1">
                   {kp.title}
@@ -143,7 +143,7 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
             {data.examples.map((ex, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-[var(--color-border)] bg-white p-4"
+                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4"
               >
                 {ex.label && (
                   <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--color-text-muted)] mb-2">

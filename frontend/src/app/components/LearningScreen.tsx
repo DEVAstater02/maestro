@@ -310,7 +310,7 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
   const isLatest = activeIndex === cards.length - 1;
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-screen bg-[var(--color-bg)]">
 
       {/* ─── Header ─── */}
       <header className="flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
@@ -354,7 +354,7 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
               {!isLatest && (
                 <button
                   onClick={() => setActiveIndex(cards.length - 1)}
-                  className="absolute top-4 right-4 h-8 px-3 bg-[var(--color-text)] text-white text-[11px] font-medium rounded-full flex items-center gap-1.5 hover:opacity-80 transition-opacity z-10"
+                  className="absolute top-4 right-4 h-8 px-3 bg-[var(--color-text)] text-[var(--color-bg)] text-[11px] font-medium rounded-full flex items-center gap-1.5 hover:opacity-80 transition-opacity z-10"
                 >
                   <ArrowUpIcon /> Latest
                 </button>
@@ -399,7 +399,7 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
                     </div>
                   ) : c.thumbnailSvg ? (
                     <div
-                      className="w-full h-full flex items-center justify-center bg-white overflow-hidden pointer-events-none"
+                      className="w-full h-full flex items-center justify-center bg-[var(--color-bg)] overflow-hidden pointer-events-none"
                       style={{ transform: "scale(0.2)", transformOrigin: "center center", width: "500%", height: "500%", marginLeft: "-200%", marginTop: "-200%" }}
                       dangerouslySetInnerHTML={{ __html: c.thumbnailSvg }}
                     />
@@ -411,13 +411,13 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
 
                   {/* Number badge */}
                   <span className={`absolute top-1 left-1 text-[9px] font-medium px-1 rounded
-                    ${i === activeIndex ? "bg-[var(--color-text)] text-white" : "bg-[var(--color-surface-alt)] text-[var(--color-text-muted)]"}`}>
+                    ${i === activeIndex ? "bg-[var(--color-text)] text-[var(--color-bg)]" : "bg-[var(--color-surface-alt)] text-[var(--color-text-muted)]"}`}>
                     {i + 1}
                   </span>
 
                   {/* Hover label */}
                   <div className="absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/50 to-transparent px-1.5 py-1">
-                    <span className="text-[9px] text-white block truncate">{c.label}</span>
+                    <span className="text-[9px] text-[var(--color-bg)] block truncate">{c.label}</span>
                   </div>
                 </button>
               ))}
@@ -434,9 +434,9 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
             disabled={!canRecord && !isRecording}
             className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none
               ${isRecording
-                ? "bg-[var(--color-text)] text-white scale-105"
+                ? "bg-[var(--color-text)] text-[var(--color-bg)] scale-105"
                 : canRecord
-                  ? "bg-[var(--color-text)] text-white hover:opacity-80"
+                  ? "bg-[var(--color-text)] text-[var(--color-bg)] hover:opacity-80"
                   : "bg-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed"
               }`}
           >
