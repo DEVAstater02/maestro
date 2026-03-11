@@ -242,7 +242,7 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: #fafafa;
+          background: var(--color-bg);
           padding: 24px;
           position: relative;
           overflow: hidden;
@@ -281,8 +281,8 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         .auth-card {
           position: relative;
           z-index: 1;
-          background: #fff;
-          border: 1px solid #e8e8e8;
+          background: var(--color-surface);
+          border: 1px solid var(--color-border);
           border-radius: 24px;
           padding: 40px 36px 36px;
           width: 100%;
@@ -306,12 +306,12 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         .auth-logo-icon {
           width: 48px;
           height: 48px;
-          background: #0a0a0a;
+          background: var(--color-text);
           border-radius: 14px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: #fff;
+          color: var(--color-bg);
           margin-bottom: 12px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
@@ -319,19 +319,19 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           font-size: 22px;
           font-weight: 700;
           letter-spacing: -0.5px;
-          color: #0a0a0a;
+          color: var(--color-text);
           margin: 0 0 4px;
         }
         .auth-tagline {
           font-size: 13px;
-          color: #a3a3a3;
+          color: var(--color-text-muted);
           margin: 0;
         }
 
         /* Tabs */
         .auth-tabs {
           display: flex;
-          background: #f5f5f5;
+          background: var(--color-surface-alt);
           border-radius: 10px;
           padding: 4px;
           margin-bottom: 24px;
@@ -345,7 +345,7 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           border-radius: 7px;
           font-size: 13.5px;
           font-weight: 500;
-          color: #737373;
+          color: var(--color-text-muted);
           cursor: pointer;
           transition: all 0.2s ease;
         }
@@ -380,14 +380,14 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         .auth-label {
           font-size: 11.5px;
           font-weight: 600;
-          color: #525252;
+          color: var(--color-text-secondary);
           letter-spacing: 0.02em;
           text-transform: uppercase;
         }
         .auth-optional {
           font-weight: 400;
           text-transform: none;
-          color: #a3a3a3;
+          color: var(--color-text-muted);
           letter-spacing: 0;
         }
         .auth-input {
@@ -396,8 +396,8 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           border: 1.5px solid #e5e5e5;
           border-radius: 10px;
           font-size: 14px;
-          color: #0a0a0a;
-          background: #fafafa;
+          color: var(--color-text);
+          background: var(--color-bg);
           outline: none;
           transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
           box-sizing: border-box;
@@ -407,8 +407,8 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           color: #c4c4c4;
         }
         .auth-input:focus {
-          border-color: #0a0a0a;
-          background: #fff;
+          border-color: var(--color-text);
+          background: var(--color-surface);
           box-shadow: 0 0 0 3px rgba(10,10,10,0.06);
         }
 
@@ -419,9 +419,9 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           gap: 7px;
           padding: 10px 13px;
           background: #fff5f5;
-          border: 1px solid #fecaca;
+          border: 1px solid var(--color-danger);
           border-radius: 8px;
-          color: #dc2626;
+          color: var(--color-danger);
           font-size: 13px;
           font-weight: 500;
           animation: fieldSlideIn 0.2s ease;
@@ -431,8 +431,8 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         .auth-submit {
           width: 100%;
           padding: 12px;
-          background: #0a0a0a;
-          color: #fff;
+          background: var(--color-text);
+          color: var(--color-bg);
           border: none;
           border-radius: 12px;
           font-size: 14.5px;
@@ -463,7 +463,7 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           width: 17px;
           height: 17px;
           border: 2px solid rgba(255,255,255,0.35);
-          border-top-color: #fff;
+          border-top-color: var(--color-bg);
           border-radius: 50%;
           animation: spin 0.65s linear infinite;
         }
@@ -476,13 +476,13 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           text-align: center;
           margin: 18px 0 0;
           font-size: 13px;
-          color: #737373;
+          color: var(--color-text-muted);
         }
         .auth-switch-link {
           background: none;
           border: none;
           padding: 0;
-          color: #0a0a0a;
+          color: var(--color-text);
           font-weight: 600;
           font-size: 13px;
           cursor: pointer;
