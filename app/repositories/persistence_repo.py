@@ -14,6 +14,7 @@ import uuid
 from typing import List, Optional
 
 from app.database import get_connection
+from app.models.database_models import UserRecord
 
 
 # ── A fixed "anonymous" user that every WebSocket session is linked to ────────
@@ -74,6 +75,46 @@ class PersistenceRepository:
             conn.close()
 
         return session_id
+
+    def get_user(self, user_id: str) -> Optional[UserRecord]:
+        """Fetch user details by ID."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, name, learning_style, reasoning_speed, analogy_pool, knowledge_map, last_updated, created_at, dob, grade, interests FROM users WHERE id = %s",
+                    (user_id,)
+                )
+                row = cur.fetchone()
+                if row:
+                    # Parse JSON fields if they are strings
+                    analogy_pool = row['analogy_pool']
+                    if isinstance(analogy_pool, str):
+                        analogy_pool = json.loads(analogy_pool)
+                    
+                    knowledge_map = row['knowledge_map']
+                    if isinstance(knowledge_map, str):
+                        knowledge_map = json.loads(knowledge_map)
+
+                    return UserRecord(
+                        id=row['id'],
+                        name=row['name'],
+                        learning_style=row['learning_style'],
+                        reasoning_speed=row['reasoning_speed'],
+                        analogy_pool=analogy_pool,
+                        knowledge_map=knowledge_map,
+                        last_updated=row['last_updated'],
+                        created_at=row['created_at'],
+                        dob=row['dob'],
+                        grade=row['grade'],
+                        interests=row['interests']
+                    )
+                return None
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting user: {e}")
+            raise
+        finally:
+            conn.close()
 
     # ─────────────────────────────────────────────────────────────────────────
     # Memory persistence

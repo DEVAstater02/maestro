@@ -14,6 +14,7 @@ from app.repositories.persistence_repo import PersistenceRepository
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
 from app.services.visualizer_service import VisualizerService
+from app.routers import syllabus, curation
 
 # Load environment variables from .env file at the very beginning
 from app.database import init_db
@@ -49,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(syllabus.router, prefix="/api", tags=["Syllabus"])
+app.include_router(curation.router, prefix="/api", tags=["Curation"])
 
 # You can now access any environment variable loaded from .env generically.
 # For example, to get a variable named 'MY_GENERIC_KEY':
@@ -126,7 +130,7 @@ async def conversation_ws_handler(websocket : WebSocket):
             # 5 - Stream TTS audio chunks to the client in real-time
             try:
                 # Stream audio chunks as they're generated from the text stream
-                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia", speed=float(0.7)):
+                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia", speed=float(0.9)):
                     # Store the full text (will be the same for all chunks)
                     full_response = full_text
                     

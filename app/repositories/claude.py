@@ -30,7 +30,7 @@ class ClaudeRepository:
         try:
             message = await self.client.messages.create(
                 model=model,
-                max_tokens=1024,
+                max_tokens=9096,
                 # TODO : use system variable with prompt caching for system_prompt
                 messages=[
                     {"role": "user", "content": prompt}
