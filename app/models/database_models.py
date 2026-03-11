@@ -16,6 +16,8 @@ class UserRecord:
     """Mirrors the `users` table."""
     id: str                          # CHAR(36) UUID
     name: str
+    email: Optional[str] = None
+    password_hash: Optional[str] = None
     learning_style: str = "Direct"
     reasoning_speed: str = "Moderate"
     analogy_pool: Optional[Any] = None  # JSON

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from typing import Optional
 import json
 import time
 import re
@@ -51,7 +52,7 @@ def extract_json(text: str):
     raise ValueError("No valid JSON found in text")
 
 @router.websocket("/ws/curation")
-async def curation_ws_handler(websocket: WebSocket):
+async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query(default=None)):
     await websocket.accept()
     print("[Curation] Client Connected")
 
@@ -59,9 +60,18 @@ async def curation_ws_handler(websocket: WebSocket):
     tts_service = TTSService()
     llm_repo = ClaudeRepository()
     persistence_repo = PersistenceRepository()
-    
+
+    # Resolve the user_id from the JWT token (or fall back to anonymous)
+    from app.utils.auth_utils import decode_access_token
+    user_id = USER_ID
+    if token:
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub", USER_ID)
+            print(f"[Curation] Authenticated user: {user_id}")
+
     # Fetch user data
-    user_record = persistence_repo.get_user(USER_ID)
+    user_record = persistence_repo.get_user(user_id)
     user_profile_str = "No existing profile data."
     if user_record:
         user_profile_str = f"Name: {user_record.name}\n"
@@ -163,6 +173,19 @@ async def curation_ws_handler(websocket: WebSocket):
                     # Extract JSON
                     try:
                         syllabus_json = extract_json(syllabus_response)
+                        
+                        # Store the generated syllabus to db
+                        try:
+                            syllabus_id = persistence_repo.store_syllabus(
+                                user_id=user_id,
+                                title=topic,
+                                content_json=syllabus_json
+                            )
+                            # add the generated id to the payload
+                            syllabus_json["_id"] = syllabus_id
+                        except Exception as e:
+                            print(f"[Curation] Failed to store syllabus to DB: {e}")
+                            
                     except Exception as e:
                         print(f"[Curation] JSON Extraction Final Failure: {e}")
                         syllabus_json = {"error": "Could not parse syllabus JSON", "raw": syllabus_response}

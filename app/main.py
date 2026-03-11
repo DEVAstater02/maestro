@@ -3,7 +3,8 @@ import os
 import json
 import re
 import uvicorn
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Query
+from typing import Optional
 
 from fastapi.middleware.cors import CORSMiddleware
 from app.prompts.prompts import TEST_PROMPT
@@ -14,7 +15,7 @@ from app.repositories.persistence_repo import PersistenceRepository
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
 from app.services.visualizer_service import VisualizerService
-from app.routers import syllabus, curation
+from app.routers import syllabus, curation, auth
 
 # Load environment variables from .env file at the very beginning
 from app.database import init_db
@@ -53,6 +54,7 @@ app.add_middleware(
 
 app.include_router(syllabus.router, prefix="/api", tags=["Syllabus"])
 app.include_router(curation.router, prefix="/api", tags=["Curation"])
+app.include_router(auth.router, prefix="/api", tags=["Auth"])
 
 # You can now access any environment variable loaded from .env generically.
 # For example, to get a variable named 'MY_GENERIC_KEY':
@@ -60,7 +62,7 @@ app.include_router(curation.router, prefix="/api", tags=["Curation"])
 # print(f"My generic key: {my_generic_key}") # For debugging, do not expose in production
 
 @app.websocket("/ws/voice")
-async def conversation_ws_handler(websocket : WebSocket):
+async def conversation_ws_handler(websocket: WebSocket, token: Optional[str] = Query(default=None)):
     await websocket.accept()
     print("Client Connected")
 
@@ -71,9 +73,18 @@ async def conversation_ws_handler(websocket : WebSocket):
     visualizer_service = VisualizerService(llm_repo)
     persistence_repo = PersistenceRepository()
 
+    # ── Resolve user_id from JWT token (falls back to anonymous) ─────────────
+    user_id = None
+    if token:
+        from app.utils.auth_utils import decode_access_token
+        payload = decode_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
+            print(f"[Maestro] Authenticated user: {user_id}")
+
     # ── Create a new DB session row for this WebSocket connection ────────────
     try:
-        session_id = persistence_repo.create_session()
+        session_id = persistence_repo.create_session(user_id=user_id)
         print(f"[Maestro] DB session started: {session_id}")
     except Exception as e:
         print(f"[Maestro] WARNING – could not create DB session: {e}")
