@@ -82,12 +82,11 @@ class PersistenceRepository:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, name, learning_style, reasoning_speed, analogy_pool, knowledge_map, last_updated, created_at, dob, grade, interests FROM users WHERE id = %s",
+                    "SELECT id, name, email, password_hash, learning_style, reasoning_speed, analogy_pool, knowledge_map, last_updated, created_at, dob, grade, interests FROM users WHERE id = %s",
                     (user_id,)
                 )
                 row = cur.fetchone()
                 if row:
-                    # Parse JSON fields if they are strings
                     analogy_pool = row['analogy_pool']
                     if isinstance(analogy_pool, str):
                         analogy_pool = json.loads(analogy_pool)
@@ -99,6 +98,8 @@ class PersistenceRepository:
                     return UserRecord(
                         id=row['id'],
                         name=row['name'],
+                        email=row.get('email'),
+                        password_hash=row.get('password_hash'),
                         learning_style=row['learning_style'],
                         reasoning_speed=row['reasoning_speed'],
                         analogy_pool=analogy_pool,
@@ -112,6 +113,88 @@ class PersistenceRepository:
                 return None
         except Exception as e:
             print(f"[PersistenceRepo] ERROR getting user: {e}")
+            raise
+        finally:
+            conn.close()
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Auth helpers: create_user / get_user_by_email
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def create_user(
+        self,
+        email: str,
+        name: str,
+        password_hash: str,
+        dob: Optional[str] = None,
+        grade: Optional[str] = None,
+        interests: Optional[str] = None,
+    ) -> str:
+        """
+        Insert a new user with real credentials.
+        Returns the new user UUID.
+        """
+        user_id = str(uuid.uuid4())
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO users (id, name, email, password_hash, dob, grade, interests)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (user_id, name, email, password_hash, dob, grade, interests),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] User created: {user_id} ({email})")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR creating user: {e}")
+            raise
+        finally:
+            conn.close()
+        return user_id
+
+    def get_user_by_email(self, email: str) -> Optional[UserRecord]:
+        """Lookup a user by email (used for sign-in)."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, name, email, password_hash, learning_style, reasoning_speed, "
+                    "analogy_pool, knowledge_map, last_updated, created_at, dob, grade, interests "
+                    "FROM users WHERE email = %s",
+                    (email,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+
+                analogy_pool = row['analogy_pool']
+                if isinstance(analogy_pool, str):
+                    analogy_pool = json.loads(analogy_pool)
+
+                knowledge_map = row['knowledge_map']
+                if isinstance(knowledge_map, str):
+                    knowledge_map = json.loads(knowledge_map)
+
+                return UserRecord(
+                    id=row['id'],
+                    name=row['name'],
+                    email=row.get('email'),
+                    password_hash=row.get('password_hash'),
+                    learning_style=row['learning_style'],
+                    reasoning_speed=row['reasoning_speed'],
+                    analogy_pool=analogy_pool,
+                    knowledge_map=knowledge_map,
+                    last_updated=row['last_updated'],
+                    created_at=row['created_at'],
+                    dob=row['dob'],
+                    grade=row['grade'],
+                    interests=row['interests'],
+                )
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting user by email: {e}")
             raise
         finally:
             conn.close()

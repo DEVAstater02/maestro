@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import LearningScreen from "./components/LearningScreen";
+import AuthScreen from "./components/AuthScreen";
 
-type FlowState = "splash" | "curation" | "learning";
+type FlowState = "loading" | "auth" | "splash" | "curation" | "learning";
 
 export default function App() {
-  const [flow, setFlow] = useState<FlowState>("splash");
+  const [flow, setFlow] = useState<FlowState>("loading");
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("");
+
   const [topic, setTopic] = useState("");
-  const [userPersona, setUserPersona] = useState("A 7th grade student");
   const [subject, setSubject] = useState("Science");
   const [finalSyllabus, setFinalSyllabus] = useState<any>(null);
 
@@ -27,6 +30,61 @@ export default function App() {
   const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isReceivingAudioRef = useRef(false);
 
+  // ── On mount: check for a stored token ──────────────────────────────────
+  useEffect(() => {
+    const storedToken = localStorage.getItem("maestro_token");
+    const storedName  = localStorage.getItem("maestro_name");
+
+    if (!storedToken) {
+      setFlow("auth");
+      return;
+    }
+
+    // Validate the stored token against /api/auth/me
+    fetch("http://localhost:8000/api/auth/me", {
+      headers: { Authorization: `Bearer ${storedToken}` },
+    })
+      .then(res => {
+        if (res.ok) {
+          setAuthToken(storedToken);
+          setUserName(storedName ?? "");
+          setFlow("splash");
+        } else {
+          // Token expired or invalid – clear and show auth
+          localStorage.removeItem("maestro_token");
+          localStorage.removeItem("maestro_user_id");
+          localStorage.removeItem("maestro_name");
+          setFlow("auth");
+        }
+      })
+      .catch(() => {
+        // Server unreachable – still allow cached session for offline UX
+        if (storedToken) {
+          setAuthToken(storedToken);
+          setUserName(storedName ?? "");
+          setFlow("splash");
+        } else {
+          setFlow("auth");
+        }
+      });
+  }, []);
+
+  const handleAuthenticated = (token: string, userId: string, name: string) => {
+    setAuthToken(token);
+    setUserName(name);
+    setFlow("splash");
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem("maestro_token");
+    localStorage.removeItem("maestro_user_id");
+    localStorage.removeItem("maestro_name");
+    setAuthToken(null);
+    setUserName("");
+    setFlow("auth");
+  };
+
+  // ── Audio playback ───────────────────────────────────────────────────────
   const playAudio = async (chunks: ArrayBuffer[]) => {
     if (chunks.length === 0) return;
     if (!audioContextRef.current) audioContextRef.current = new AudioContext();
@@ -48,9 +106,7 @@ export default function App() {
       source.buffer = audioBuf;
       source.connect(ctx.destination);
       source.start(0);
-      return new Promise((resolve) => {
-        source.onended = resolve;
-      });
+      return new Promise(resolve => { source.onended = resolve; });
     } catch (e) {
       console.error("Audio playback error", e);
     }
@@ -58,11 +114,15 @@ export default function App() {
 
   const startCuration = () => {
     setFlow("curation");
-    const ws = new WebSocket("ws://localhost:8000/api/ws/curation");
+    const wsUrl = authToken
+      ? `ws://localhost:8000/api/ws/curation?token=${encodeURIComponent(authToken)}`
+      : "ws://localhost:8000/api/ws/curation";
+
+    const ws = new WebSocket(wsUrl);
     socketRef.current = ws;
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ topic, user_persona: userPersona, subject }));
+      ws.send(JSON.stringify({ topic, user_persona: userName || "A student", subject }));
     };
 
     ws.onmessage = async (event) => {
@@ -94,7 +154,7 @@ export default function App() {
             responseAudioChunksRef.current = [];
             await playAudio(chunksToPlay);
           }
-        }, 150); // Small delay to aggregate chunks
+        }, 150);
       }
     };
   };
@@ -120,9 +180,46 @@ export default function App() {
     setIsRecording(false);
   };
 
+  // ── Loading screen ───────────────────────────────────────────────────────
+  if (flow === "loading") {
+    return (
+      <div className="h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[var(--color-text)] border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-[var(--color-text-muted)]">Loading maestro...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Auth screen ──────────────────────────────────────────────────────────
+  if (flow === "auth") {
+    return <AuthScreen onAuthenticated={handleAuthenticated} />;
+  }
+
+  // ── Splash (start learning) ──────────────────────────────────────────────
   if (flow === "splash") {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-white p-6">
+        {/* Header with user info + sign out */}
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
+          <span className="text-base font-semibold tracking-tight">maestro</span>
+          <div className="flex items-center gap-3">
+            {userName && (
+              <span className="text-xs text-[var(--color-text-muted)]">
+                Hi, <span className="font-medium text-[var(--color-text)]">{userName}</span>
+              </span>
+            )}
+            <button
+              id="sign-out-btn"
+              onClick={handleSignOut}
+              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors border border-[var(--color-border)] rounded-full px-3 py-1"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+
         <div className="max-w-md w-full text-center space-y-8">
           <div className="space-y-2">
             <h1 className="text-4xl font-bold tracking-tight">maestro</h1>
@@ -133,6 +230,7 @@ export default function App() {
             <div className="space-y-1">
               <label className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] font-semibold">What do you want to learn?</label>
               <input
+                id="topic-input"
                 value={topic}
                 onChange={e => setTopic(e.target.value)}
                 placeholder="e.g. Quantum Physics, Spanish Verbs..."
@@ -142,6 +240,7 @@ export default function App() {
             <div className="space-y-1">
               <label className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] font-semibold">Subject</label>
               <input
+                id="subject-input"
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
                 className="w-full bg-transparent border-b border-[var(--color-border)] py-2 focus:outline-none focus:border-[var(--color-text)] transition-colors"
@@ -150,6 +249,7 @@ export default function App() {
           </div>
 
           <button
+            id="start-learning-btn"
             onClick={startCuration}
             disabled={!topic}
             className="w-full py-4 bg-[var(--color-text)] text-white rounded-full font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
@@ -161,6 +261,7 @@ export default function App() {
     );
   }
 
+  // ── Curation screen ──────────────────────────────────────────────────────
   if (flow === "curation") {
     return (
       <div className="h-screen flex flex-col bg-white">
@@ -169,6 +270,11 @@ export default function App() {
             <span className="text-base font-semibold tracking-tight">maestro</span>
             <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">Curation</span>
           </div>
+          {userName && (
+            <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline">
+              {userName}
+            </span>
+          )}
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8">
@@ -185,6 +291,7 @@ export default function App() {
 
           <div className="flex flex-col items-center gap-4">
             <button
+              id="record-btn"
               onMouseDown={startRecording}
               onMouseUp={stopRecording}
               disabled={curationStatus !== "waiting_for_input"}

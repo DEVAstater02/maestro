@@ -1,5 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from typing import List, Optional
+from datetime import date
 
 class UserQuestionRequest(BaseModel):
     prompt : str
@@ -44,3 +45,30 @@ class SyllabusRequest(BaseModel):
     topic: str
     user_persona: str
     subject: str
+
+
+# ─── Auth Models ───────────────────────────────────────────────────────────
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    dob: Optional[str] = None      # ISO date string YYYY-MM-DD
+    grade: Optional[str] = None
+    interests: Optional[str] = None
+
+
+class SigninRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user_id: str
+    name: str
+
+
+class TokenData(BaseModel):
+    user_id: str
+    name: str
