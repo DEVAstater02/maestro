@@ -117,6 +117,29 @@ class PersistenceRepository:
         finally:
             conn.close()
 
+    def store_syllabus(self, user_id: str, title: str, content_json: dict) -> str:
+        """Store the generated syllabus in the database."""
+        syllabus_id = str(uuid.uuid4())
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO syllabus (id, user_id, title, content_json)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (syllabus_id, user_id, title, json.dumps(content_json)),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] Syllabus saved: {syllabus_id} for user {user_id}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR saving syllabus: {e}")
+            raise
+        finally:
+            conn.close()
+        return syllabus_id
+
     # ─────────────────────────────────────────────────────────────────────────
     # Auth helpers: create_user / get_user_by_email
     # ─────────────────────────────────────────────────────────────────────────

@@ -173,6 +173,19 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                     # Extract JSON
                     try:
                         syllabus_json = extract_json(syllabus_response)
+                        
+                        # Store the generated syllabus to db
+                        try:
+                            syllabus_id = persistence_repo.store_syllabus(
+                                user_id=user_id,
+                                title=topic,
+                                content_json=syllabus_json
+                            )
+                            # add the generated id to the payload
+                            syllabus_json["_id"] = syllabus_id
+                        except Exception as e:
+                            print(f"[Curation] Failed to store syllabus to DB: {e}")
+                            
                     except Exception as e:
                         print(f"[Curation] JSON Extraction Final Failure: {e}")
                         syllabus_json = {"error": "Could not parse syllabus JSON", "raw": syllabus_response}
