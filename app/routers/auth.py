@@ -14,64 +14,41 @@ from app.utils.auth_utils import (
     decode_access_token,
 )
 
+from app.services.auth_service import AuthService
+
 router = APIRouter()
 
-
-def _repo() -> PersistenceRepository:
-    return PersistenceRepository()
-
+def _auth_service() -> AuthService:
+    return AuthService()
 
 # ── Signup ────────────────────────────────────────────────────────────────────
 
 @router.post("/auth/signup", response_model=AuthResponse)
-def signup(body: SignupRequest, repo: PersistenceRepository = Depends(_repo)):
-    # Check for duplicate email
-    existing = repo.get_user_by_email(body.email)
-    if existing:
-        raise HTTPException(status_code=409, detail="An account with this email already exists.")
-
-    hashed = hash_password(body.password)
-    user_id = repo.create_user(
-        email=body.email,
-        name=body.name,
-        password_hash=hashed,
-        dob=body.dob,
-        grade=body.grade,
-        interests=body.interests,
-    )
-
-    token = create_access_token(user_id=user_id, name=body.name)
-    return AuthResponse(token=token, user_id=user_id, name=body.name)
-
+def signup(body: SignupRequest, service: AuthService = Depends(_auth_service)):
+    try:
+        return service.signup(body)
+    except ValueError as e:
+        if str(e) == "An account with this email already exists.":
+            raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
 # ── Signin ────────────────────────────────────────────────────────────────────
 
 @router.post("/auth/signin", response_model=AuthResponse)
-def signin(body: SigninRequest, repo: PersistenceRepository = Depends(_repo)):
-    user = repo.get_user_by_email(body.email)
-    if not user or not user.password_hash:
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
-
-    if not verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
-
-    token = create_access_token(user_id=user.id, name=user.name)
-    return AuthResponse(token=token, user_id=user.id, name=user.name)
-
+def signin(body: SigninRequest, service: AuthService = Depends(_auth_service)):
+    try:
+        return service.signin(body)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 # ── Me (validate token + return profile) ─────────────────────────────────────
 
 @router.get("/auth/me")
-def me(authorization: Optional[str] = Header(default=None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header.")
-
-    token = authorization.removeprefix("Bearer ").strip()
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Token is invalid or expired.")
-
-    return {
-        "user_id": payload.get("sub"),
-        "name": payload.get("name"),
-    }
+def me(
+    authorization: Optional[str] = Header(default=None), 
+    service: AuthService = Depends(_auth_service)
+):
+    try:
+        return service.get_profile_from_token(authorization)
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))

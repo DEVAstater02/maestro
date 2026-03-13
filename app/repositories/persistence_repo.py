@@ -140,6 +140,42 @@ class PersistenceRepository:
             conn.close()
         return syllabus_id
 
+    def get_syllabuses_by_user(self, user_id: str) -> List[dict]:
+        """Fetch all syllabuses for a particular user."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, title, content_json, created_at
+                    FROM syllabus
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    """,
+                    (user_id,)
+                )
+                rows = cur.fetchall()
+                result = []
+                for row in rows:
+                    content_json = row['content_json']
+                    if isinstance(content_json, str):
+                        try:
+                            content_json = json.loads(content_json)
+                        except:
+                            pass
+                    result.append({
+                        "id": row['id'],
+                        "title": row['title'],
+                        "content_json": content_json,
+                        "created_at": row['created_at'].isoformat() if row['created_at'] else None
+                    })
+                return result
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting syllabuses: {e}")
+            raise
+        finally:
+            conn.close()
+
     # ─────────────────────────────────────────────────────────────────────────
     # Auth helpers: create_user / get_user_by_email
     # ─────────────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import mermaid from "mermaid";
 import EducationalCard, { type StructuredVis } from "./EducationalCard";
+import { ThemeToggle } from "./ThemeToggle";
 
 /* ─── Types ─── */
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
@@ -47,7 +48,10 @@ const AlertIcon = () => (
   </svg>
 );
 
+import { useTheme } from "next-themes";
+
 export default function LearningScreen({ initialSyllabus }: { initialSyllabus: any }) {
+  const { theme, resolvedTheme } = useTheme();
   const [status, setStatus] = useState("Ready to connect");
   const [appState, setAppState] = useState<AppState>("idle");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -68,11 +72,25 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
 
   /* ─── Mermaid init ─── */
   useEffect(() => {
-    mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
+    const isDark = resolvedTheme === "dark" || theme === "dark";
+    mermaid.initialize({ 
+      startOnLoad: false, 
+      theme: isDark ? "dark" : "neutral", 
+      securityLevel: "loose",
+      themeVariables: isDark ? {
+        primaryColor: "#ffffff",
+        primaryTextColor: "#ffffff",
+        primaryBorderColor: "#ffffff",
+        lineColor: "#ffffff",
+        secondaryColor: "#141414",
+        tertiaryColor: "#1a1a1a"
+      } : {}
+    });
+    
     if (initialSyllabus) {
       console.log("Started with syllabus:", initialSyllabus);
     }
-  }, [initialSyllabus]);
+  }, [initialSyllabus, theme, resolvedTheme]);
 
   const truncateLabel = (text: string, max = 32) =>
     text.length > max ? text.slice(0, max) + "…" : text;
@@ -320,10 +338,11 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
         </div>
         <div className="flex items-center gap-2">
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-          <span className="text-[11px] text-[var(--color-text-muted)]">
+          <span className="text-[11px] text-[var(--color-text-muted)] border-r border-[var(--color-border)] pr-3 mr-1">
             {connectionStatus === "connected" ? "Connected" :
               connectionStatus === "connecting" ? "Connecting" : "Offline"}
           </span>
+          <ThemeToggle />
         </div>
       </header>
 

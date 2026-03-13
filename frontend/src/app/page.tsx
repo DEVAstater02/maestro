@@ -4,7 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import LearningScreen from "./components/LearningScreen";
 import AuthScreen from "./components/AuthScreen";
 
-type FlowState = "loading" | "auth" | "splash" | "curation" | "learning";
+import DashboardScreen from "./components/DashboardScreen";
+
+type FlowState = "loading" | "auth" | "dashboard" | "splash" | "curation" | "learning";
 
 import { ThemeToggle } from "./components/ThemeToggle";
 
@@ -50,7 +52,7 @@ export default function App() {
         if (res.ok) {
           setAuthToken(storedToken);
           setUserName(storedName ?? "");
-          setFlow("splash");
+            setFlow("dashboard");
         } else {
           // Token expired or invalid – clear and show auth
           localStorage.removeItem("maestro_token");
@@ -64,7 +66,7 @@ export default function App() {
         if (storedToken) {
           setAuthToken(storedToken);
           setUserName(storedName ?? "");
-          setFlow("splash");
+            setFlow("dashboard");
         } else {
           setFlow("auth");
         }
@@ -74,7 +76,7 @@ export default function App() {
   const handleAuthenticated = (token: string, userId: string, name: string) => {
     setAuthToken(token);
     setUserName(name);
-    setFlow("splash");
+    setFlow("dashboard");
   };
 
   const handleSignOut = () => {
@@ -199,6 +201,22 @@ export default function App() {
     return <AuthScreen onAuthenticated={handleAuthenticated} />;
   }
 
+  // ── Dashboard ────────────────────────────────────────────────────────────
+  if (flow === "dashboard") {
+    return (
+      <DashboardScreen
+        userName={userName}
+        authToken={authToken || ""}
+        onSignOut={handleSignOut}
+        onStartNew={() => setFlow("splash")}
+        onResumeSyllabus={(syllabus: any) => {
+          setFinalSyllabus(syllabus);
+          setFlow("learning");
+        }}
+      />
+    );
+  }
+
   // ── Splash (start learning) ──────────────────────────────────────────────
   if (flow === "splash") {
     return (
@@ -273,11 +291,14 @@ export default function App() {
             <span className="text-base font-semibold tracking-tight">maestro</span>
             <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">Curation</span>
           </div>
-          {userName && (
-            <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline">
-              {userName}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {userName && (
+              <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline">
+                {userName}
+              </span>
+            )}
+            <ThemeToggle />
+          </div>
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8">
