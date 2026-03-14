@@ -4,7 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import LearningScreen from "./components/LearningScreen";
 import AuthScreen from "./components/AuthScreen";
 
-type FlowState = "loading" | "auth" | "splash" | "curation" | "learning";
+import DashboardScreen from "./components/DashboardScreen";
+
+type FlowState = "loading" | "auth" | "dashboard" | "splash" | "curation" | "learning";
 
 import { ThemeToggle } from "./components/ThemeToggle";
 
@@ -16,6 +18,7 @@ export default function App() {
   const [topic, setTopic] = useState("");
   const [subject, setSubject] = useState("Science");
   const [finalSyllabus, setFinalSyllabus] = useState<any>(null);
+  const [activeSyllabusId, setActiveSyllabusId] = useState<string | undefined>(undefined);
 
   // Status for Curation
   const [curationStatus, setCurationStatus] = useState("Initializing...");
@@ -50,7 +53,7 @@ export default function App() {
         if (res.ok) {
           setAuthToken(storedToken);
           setUserName(storedName ?? "");
-          setFlow("splash");
+            setFlow("dashboard");
         } else {
           // Token expired or invalid – clear and show auth
           localStorage.removeItem("maestro_token");
@@ -64,7 +67,7 @@ export default function App() {
         if (storedToken) {
           setAuthToken(storedToken);
           setUserName(storedName ?? "");
-          setFlow("splash");
+            setFlow("dashboard");
         } else {
           setFlow("auth");
         }
@@ -74,7 +77,7 @@ export default function App() {
   const handleAuthenticated = (token: string, userId: string, name: string) => {
     setAuthToken(token);
     setUserName(name);
-    setFlow("splash");
+    setFlow("dashboard");
   };
 
   const handleSignOut = () => {
@@ -138,6 +141,7 @@ export default function App() {
           setTranscription(msg.data);
         } else if (msg.type === "final_syllabus") {
           setFinalSyllabus(msg.data);
+          setActiveSyllabusId(msg.data?._id);
           setFlow("learning");
           ws.close();
         }
@@ -199,13 +203,38 @@ export default function App() {
     return <AuthScreen onAuthenticated={handleAuthenticated} />;
   }
 
+  // ── Dashboard ────────────────────────────────────────────────────────────
+  if (flow === "dashboard") {
+    return (
+      <DashboardScreen
+        userName={userName}
+        authToken={authToken || ""}
+        onSignOut={handleSignOut}
+        onStartNew={() => {
+          setFlow("splash");
+          setActiveSyllabusId(undefined);
+        }}
+        onResumeSyllabus={(syllabus: any, syllabusId: string) => {
+          setFinalSyllabus(syllabus);
+          setActiveSyllabusId(syllabusId);
+          setFlow("learning");
+        }}
+      />
+    );
+  }
+
   // ── Splash (start learning) ──────────────────────────────────────────────
   if (flow === "splash") {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-[var(--color-bg)] p-6">
         {/* Header with user info + sign out */}
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
-          <span className="text-base font-semibold tracking-tight">maestro</span>
+          <button 
+            onClick={() => setFlow("dashboard")}
+            className="text-base font-semibold tracking-tight hover:opacity-70 transition-opacity focus:outline-none"
+          >
+            maestro
+          </button>
           <div className="flex items-center gap-3">
             {userName && (
               <span className="text-xs text-[var(--color-text-muted)]">
@@ -270,14 +299,25 @@ export default function App() {
       <div className="h-screen flex flex-col bg-[var(--color-bg)]">
         <header className="flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
           <div className="flex items-center gap-2.5">
-            <span className="text-base font-semibold tracking-tight">maestro</span>
-            <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">Curation</span>
+            <button 
+              onClick={() => {
+                socketRef.current?.close();
+                setFlow("dashboard");
+              }}
+              className="flex items-center gap-2.5 hover:opacity-70 transition-opacity focus:outline-none"
+            >
+              <span className="text-base font-semibold tracking-tight">maestro</span>
+              <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">Curation</span>
+            </button>
           </div>
-          {userName && (
-            <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline">
-              {userName}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {userName && (
+              <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline">
+                {userName}
+              </span>
+            )}
+            <ThemeToggle />
+          </div>
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8">
@@ -326,5 +366,11 @@ export default function App() {
     );
   }
 
-  return <LearningScreen initialSyllabus={finalSyllabus} />;
+  return (
+    <LearningScreen 
+      initialSyllabus={finalSyllabus} 
+      syllabusId={activeSyllabusId}
+      onHome={() => setFlow("dashboard")}
+    />
+  );
 }

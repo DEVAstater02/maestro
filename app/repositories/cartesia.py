@@ -58,32 +58,49 @@ class CartesiaRepository:
     async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "a0e99829-1bb2-4353-9d43-352c75535515", model_id: str = "sonic-3", speed: float = 1.0):
         """
         Generate speech from a streaming text source using Cartesia's Sonic model.
-        This method consumes text chunks from an async generator, collects the full text,
-        and then streams the audio chunks back.
-        
-        Args:
-            text_stream: An async generator that yields text chunks (e.g., from Claude).
-            voice_id (str): The voice ID to use.
-            model_id (str): The model ID to use.
-            speed (float): The speed of the speech (0.6 to 1.5).
-            
-        Yields:
-            tuple: (full_text, audio_chunk) - The complete text and audio data chunks.
+        This method yields audio chunks as sentences are completed in the text stream,
+        ensuring lower latency than waiting for the full text.
         """
         try:
-            # Collect all text chunks first to ensure smooth, continuous audio
             full_text = ""
+            sentence_buffer = ""
+            # Common sentence endings
+            sentence_endings = ('.', '!', '?', '\n')
+            
             async for text_chunk in text_stream:
                 full_text += text_chunk
-            
-            if full_text.strip():
-                # print(f"Cartesia: Generating speech for collected text ({len(full_text)} chars) at speed {speed}")
+                sentence_buffer += text_chunk
                 
-                # Cartesia's SSE method returns a generator that yields audio chunks
-                # We use 'wav' container for compatibility, though 'raw' is also possible
+                # If we have a complete sentence, send it to TTS
+                if any(ending in sentence_buffer for ending in sentence_endings) and len(sentence_buffer.strip()) > 20:
+                    current_sentence = sentence_buffer.strip()
+                    sentence_buffer = ""
+                    
+                    print(f"[Cartesia] Streaming sentence: {current_sentence[:50]}...")
+                    response = self.client.tts.sse(
+                        model_id=model_id,
+                        transcript=current_sentence,
+                        voice={"mode": "id", "id": voice_id},
+                        output_format={
+                            "container": "raw",
+                            "encoding": "pcm_f32le",
+                            "sample_rate": 44100
+                        },
+                        generation_config={
+                            "speed": speed
+                        }
+                    )
+                    
+                    for chunk in response:
+                        if hasattr(chunk, "audio") and chunk.audio is not None and len(chunk.audio) > 0:
+                            yield (full_text, chunk.audio)
+
+            # Handle any remaining text in the buffer
+            if sentence_buffer.strip():
+                print(f"[Cartesia] Streaming final sentence: {sentence_buffer[:50]}...")
                 response = self.client.tts.sse(
                     model_id=model_id,
-                    transcript=full_text.strip(),
+                    transcript=sentence_buffer.strip(),
                     voice={"mode": "id", "id": voice_id},
                     output_format={
                         "container": "raw",
@@ -94,15 +111,9 @@ class CartesiaRepository:
                         "speed": speed
                     }
                 )
-                
-                chunk_num = 0
                 for chunk in response:
-                    # Each chunk is an object with a 'type' and potentially an 'audio' property
                     if hasattr(chunk, "audio") and chunk.audio is not None and len(chunk.audio) > 0:
-                        chunk_num += 1
                         yield (full_text, chunk.audio)
-                
-                print(f"Cartesia finished streaming {chunk_num} total chunks")
                     
         except Exception as e:
             print(f"Cartesia API Error during streaming TTS: {e}")

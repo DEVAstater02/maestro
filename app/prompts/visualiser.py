@@ -170,7 +170,8 @@ CRITICAL SYNTAX RULES — VIOLATING THESE BREAKS THE DIAGRAM
    CORRECT: A["Process Data"]  B{{"Is Valid?"}}  -->|"Yes"|
    WRONG:   A[Process Data]    B{{Is Valid?}}     -->|Yes|
 
-2. NODE IDs — simple alphanumeric only (A, B, C, node1, step2). Never use spaces or special chars in IDs.
+2. NODE IDs — use very simple, short alphanumeric IDs only (A, B, node1). 
+   CRITICAL: Never use Mermaid keywords as IDs (e.g., do not use "end", "graph", "flowchart", "subgraph" as node names).
 
 3. ESCAPE QUOTES IN JSON — since the diagram is inside a JSON string, escape inner quotes:
    In JSON: "diagram": "flowchart TD\\n  A[\\"Start\\"] --> B[\\"End\\"]"
@@ -180,6 +181,7 @@ CRITICAL SYNTAX RULES — VIOLATING THESE BREAKS THE DIAGRAM
 5. AVOID THESE IN LABELS (even inside quotes):
    - Semicolons (;) — they terminate statements
    - Backticks (`) — they break parsing
+   - Hash characters (#) — they can be interpreted as comments
    - Unmatched brackets or braces
 
 6. KEEP DIAGRAMS FOCUSED — 4 to 10 nodes maximum. One concept per diagram. Split complex ideas into simpler visuals.

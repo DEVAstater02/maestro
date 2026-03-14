@@ -6,10 +6,7 @@ import re
 import os
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
-from app.repositories.claude import ClaudeRepository
-from app.prompts.curation import CURATION_PROMPT
-from app.prompts.syllabus import SYLLABUS_GENERATION_PROMPT
-from app.repositories.persistence_repo import PersistenceRepository
+from app.services.curation_service import CurationService
 
 USER_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -20,37 +17,6 @@ async def to_async_iterator(iterator):
     for item in iterator:
         yield item
 
-def extract_json(text: str):
-    """Robustly extract and parse JSON from LLM response."""
-    # 1. Look for markdown blocks
-    json_match = re.search(r'```(?:json)?\s*(\{.*\})\s*```', text, re.DOTALL)
-    candidate = json_match.group(1) if json_match else None
-    
-    if not candidate:
-        # 2. Look for the first { and last }
-        start = text.find('{')
-        end = text.rfind('}')
-        if start != -1 and end != -1:
-            candidate = text[start:end+1]
-            
-    if candidate:
-        try:
-            # Clean common LLM mistakes like trailing commas
-            # This is a bit risky but can help for "Expecting ',' delimiter"
-            # though usually that error means something else.
-            # For now, let's just try basic parsing and add logging.
-            return json.loads(candidate)
-        except json.JSONDecodeError as e:
-            print(f"[JSON Extraction] Direct decode failed: {e}. Text length: {len(candidate)}")
-            # Try a very basic clean up for trailing commas in simple structures
-            try:
-                # Remove trailing commas before closing braces/brackets
-                cleaned = re.sub(r',\s*([}\]])', r'\1', candidate)
-                return json.loads(cleaned)
-            except:
-                raise e
-    raise ValueError("No valid JSON found in text")
-
 @router.websocket("/ws/curation")
 async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query(default=None)):
     await websocket.accept()
@@ -58,8 +24,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
 
     stt_service = STTService()
     tts_service = TTSService()
-    llm_repo = ClaudeRepository()
-    persistence_repo = PersistenceRepository()
+    curation_service = CurationService()
 
     # Resolve the user_id from the JWT token (or fall back to anonymous)
     from app.utils.auth_utils import decode_access_token
@@ -70,15 +35,8 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
             user_id = payload.get("sub", USER_ID)
             print(f"[Curation] Authenticated user: {user_id}")
 
-    # Fetch user data
-    user_record = persistence_repo.get_user(user_id)
-    user_profile_str = "No existing profile data."
-    if user_record:
-        user_profile_str = f"Name: {user_record.name}\n"
-        user_profile_str += f"Grade: {user_record.grade or 'Unknown'}\n"
-        user_profile_str += f"Learning Style: {user_record.learning_style}\n"
-        user_profile_str += f"Interests: {user_record.interests or 'Not specified'}\n"
-        user_profile_str += f"Reasoning Speed: {user_record.reasoning_speed}\n"
+    # Fetch user data via CurationService
+    user_profile_str = curation_service.get_user_profile(user_id)
     
     # State for curation
     curation_history = []
@@ -96,15 +54,11 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
         print(f"[Curation] Started for Topic: {topic}, Persona: {user_persona}")
 
         # 2. Get the first curation question
-        first_prompt = CURATION_PROMPT.format(
-            TOPIC=topic,
-            USER_PERSONA=user_profile_str,
-            SUBJECT=subject,
-            CURATION_HISTORY="No conversation yet."
-        )
-        
-        current_question = await llm_repo.generate_response(
-            prompt=first_prompt
+        current_question = await curation_service.generate_curation_question(
+            topic=topic,
+            user_profile_str=user_profile_str,
+            subject=subject,
+            curation_history_text="No conversation yet."
         )
         
         # Stream the first question
@@ -135,23 +89,17 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                 curation_history.append(f"Tutor: {current_question}")
                 curation_history.append(f"Student: {transcribed_text}")
                 
-                # Decide next step
-                prompt = CURATION_PROMPT.format(
-                    TOPIC=topic,
-                    USER_PERSONA=user_profile_str,
-                    SUBJECT=subject,
-                    CURATION_HISTORY="\n".join(curation_history)
-                )
-                
-                llm_response = await llm_repo.generate_response(
-                    prompt=prompt
+                llm_response = await curation_service.generate_curation_question(
+                    topic=topic,
+                    user_profile_str=user_profile_str,
+                    subject=subject,
+                    curation_history_text="\n".join(curation_history)
                 )
                 
                 # Check for conclusion
-                if "<conclude_curation>" in llm_response:
-                    conclusion_match = re.search(r'<conclude_curation>(.*?)</conclude_curation>', llm_response, re.DOTALL)
-                    conclusion_text = conclusion_match.group(1).strip() if conclusion_match else "Great! I have enough information to build your syllabus."
-                    
+                conclusion_text = curation_service.check_conclusion(llm_response)
+                
+                if conclusion_text:
                     # Inform user we are generating syllabus
                     async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([conclusion_text]), provider="cartesia"):
                         await websocket.send_bytes(audio_chunk)
@@ -159,24 +107,19 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                     await websocket.send_json({"type": "status", "data": "generating_syllabus", "text": conclusion_text})
                     
                     # 4. Generate Final Syllabus
-                    final_syllabus_prompt = SYLLABUS_GENERATION_PROMPT.replace("{{TOPIC}}", f"{topic} (Context: {conclusion_text})")
-                    final_syllabus_prompt = final_syllabus_prompt.replace("{{USER_PERSONA}}", user_persona)
-                    final_syllabus_prompt = final_syllabus_prompt.replace("{{SUBJECT}}", subject)
-                    
-                    syllabus_response = await llm_repo.generate_response(
-                        prompt=final_syllabus_prompt,
-                        model="claude-sonnet-4-6"
+                    syllabus_json = await curation_service.generate_syllabus(
+                        topic=topic,
+                        user_persona=user_persona,
+                        subject=subject,
+                        conclusion_text=conclusion_text
                     )
 
-                    print(f"[Curation] Syllabus Response: {syllabus_response}")
+                    print(f"[Curation] Syllabus Generated: {list(syllabus_json.keys())}")
                     
-                    # Extract JSON
-                    try:
-                        syllabus_json = extract_json(syllabus_response)
-                        
-                        # Store the generated syllabus to db
+                    # Store the generated syllabus to db if it's not a raw/error response
+                    if "raw_response" not in syllabus_json and "error" not in syllabus_json:
                         try:
-                            syllabus_id = persistence_repo.store_syllabus(
+                            syllabus_id = curation_service.store_syllabus(
                                 user_id=user_id,
                                 title=topic,
                                 content_json=syllabus_json
@@ -185,10 +128,6 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                             syllabus_json["_id"] = syllabus_id
                         except Exception as e:
                             print(f"[Curation] Failed to store syllabus to DB: {e}")
-                            
-                    except Exception as e:
-                        print(f"[Curation] JSON Extraction Final Failure: {e}")
-                        syllabus_json = {"error": "Could not parse syllabus JSON", "raw": syllabus_response}
                     
                     await websocket.send_json({"type": "final_syllabus", "data": syllabus_json})
                     print("[Curation] Syllabus generated and sent. Closing connection.")

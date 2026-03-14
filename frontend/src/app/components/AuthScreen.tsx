@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface AuthScreenProps {
   onAuthenticated: (token: string, userId: string, name: string) => void;
@@ -71,6 +72,10 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
 
   return (
     <div className="auth-root">
+      <div className="absolute top-6 right-6 z-10">
+        <ThemeToggle />
+      </div>
+
       {/* ── Background orbs ── */}
       <div className="auth-orb auth-orb-1" />
       <div className="auth-orb auth-orb-2" />
@@ -350,12 +355,12 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           transition: all 0.2s ease;
         }
         .auth-tab:hover:not(.auth-tab-active) {
-          color: #404040;
-          background: rgba(0,0,0,0.04);
+          color: var(--color-text);
+          background: var(--color-surface);
         }
         .auth-tab-active {
-          background: #fff !important;
-          color: #0a0a0a !important;
+          background: var(--color-bg) !important;
+          color: var(--color-text) !important;
           box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
         }
 
@@ -393,7 +398,7 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
         .auth-input {
           width: 100%;
           padding: 10px 14px;
-          border: 1.5px solid #e5e5e5;
+          border: 1.5px solid var(--color-border);
           border-radius: 10px;
           font-size: 14px;
           color: var(--color-text);
@@ -404,12 +409,12 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           font-family: inherit;
         }
         .auth-input::placeholder {
-          color: #c4c4c4;
+          color: var(--color-text-muted);
         }
         .auth-input:focus {
           border-color: var(--color-text);
           background: var(--color-surface);
-          box-shadow: 0 0 0 3px rgba(10,10,10,0.06);
+          box-shadow: 0 0 0 3px var(--color-border-subtle);
         }
 
         /* Error */
@@ -418,7 +423,7 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
           align-items: center;
           gap: 7px;
           padding: 10px 13px;
-          background: #fff5f5;
+          background: var(--color-surface-alt);
           border: 1px solid var(--color-danger);
           border-radius: 8px;
           color: var(--color-danger);

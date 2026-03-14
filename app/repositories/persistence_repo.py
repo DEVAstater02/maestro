@@ -37,7 +37,7 @@ class PersistenceRepository:
     # Session creation
     # ─────────────────────────────────────────────────────────────────────────
 
-    def create_session(self, user_id: Optional[str] = None) -> str:
+    def create_session(self, user_id: Optional[str] = None, syllabus_id: Optional[str] = None) -> str:
         """
         1. Ensure the user row exists (create anonymous user on first run).
         2. Insert a new row into `sessions`.
@@ -61,9 +61,9 @@ class PersistenceRepository:
                 cur.execute(
                     """
                     INSERT INTO sessions (id, user_id, syllabus_id, session_memory_string)
-                    VALUES (%s, %s, NULL, NULL)
+                    VALUES (%s, %s, %s, NULL)
                     """,
-                    (session_id, user_id),
+                    (session_id, user_id, syllabus_id),
                 )
             conn.commit()
             print(f"[PersistenceRepo] Session created: {session_id}")
@@ -139,6 +139,124 @@ class PersistenceRepository:
         finally:
             conn.close()
         return syllabus_id
+
+    def get_syllabuses_by_user(self, user_id: str) -> List[dict]:
+        """Fetch all syllabuses for a particular user."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, title, content_json, created_at
+                    FROM syllabus
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                    """,
+                    (user_id,)
+                )
+                rows = cur.fetchall()
+                result = []
+                for row in rows:
+                    content_json = row['content_json']
+                    if isinstance(content_json, str):
+                        try:
+                            content_json = json.loads(content_json)
+                        except:
+                            pass
+                    result.append({
+                        "id": row['id'],
+                        "title": row['title'],
+                        "content_json": content_json,
+                        "created_at": row['created_at'].isoformat() if row['created_at'] else None
+                    })
+                return result
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting syllabuses: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def get_syllabus(self, syllabus_id: str) -> Optional[dict]:
+        """Fetch a single syllabus by ID."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, title, content_json FROM syllabus WHERE id = %s",
+                    (syllabus_id,)
+                )
+                row = cur.fetchone()
+                if row:
+                    content_json = row['content_json']
+                    if isinstance(content_json, str):
+                        content_json = json.loads(content_json)
+                    return {
+                        "id": row['id'],
+                        "title": row['title'],
+                        "content_json": content_json
+                    }
+                return None
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting syllabus: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def get_session(self, session_id: str) -> Optional[dict]:
+        """Fetch a session by ID."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, user_id, syllabus_id, session_memory_string FROM sessions WHERE id = %s",
+                    (session_id,)
+                )
+                row = cur.fetchone()
+                if row:
+                    return {
+                        "id": row['id'],
+                        "user_id": row['user_id'],
+                        "syllabus_id": row['syllabus_id'],
+                        "session_memory_string": row['session_memory_string']
+                    }
+                return None
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting session: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def get_latest_session(self, user_id: str = None, syllabus_id: str = None) -> Optional[dict]:
+        """Fetch the most recent session for a user and syllabus."""
+        if user_id is None:
+            user_id = ANONYMOUS_USER_ID
+        
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, syllabus_id, session_memory_string 
+                    FROM sessions 
+                    WHERE user_id = %s AND syllabus_id = %s
+                    ORDER BY updated_at DESC LIMIT 1
+                    """,
+                    (user_id, syllabus_id)
+                )
+                row = cur.fetchone()
+                if row:
+                    return {
+                        "id": row['id'],
+                        "user_id": row['user_id'],
+                        "syllabus_id": row['syllabus_id'],
+                        "session_memory_string": row['session_memory_string']
+                    }
+                return None
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting latest session: {e}")
+            raise
+        finally:
+            conn.close()
 
     # ─────────────────────────────────────────────────────────────────────────
     # Auth helpers: create_user / get_user_by_email

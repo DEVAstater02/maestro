@@ -58,43 +58,46 @@ class ElevenLabsRepository:
     async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "21m00Tcm4TlvDq8ikWAM"):
         """
         Generate speech from a streaming text source using ElevenLabs API.
-        This method consumes text chunks from an async generator (like Claude's stream_response),
-        collects the full text, and then streams the audio as one continuous piece.
-        
-        Args:
-            text_stream: An async generator that yields text chunks.
-            voice_id (str): The voice ID to use (default is a sample voice).
-            
-        Yields:
-            tuple: (full_text, audio_chunk) - The complete text and audio data chunks.
+        This method yields audio chunks as sentences are completed in the text stream,
+        ensuring lower latency than waiting for the full text.
         """
         try:
-            # Collect all text chunks first to ensure smooth, continuous audio
             full_text = ""
+            sentence_buffer = ""
+            # Common sentence endings
+            sentence_endings = ('.', '!', '?', '\n')
             
             async for text_chunk in text_stream:
                 full_text += text_chunk
-            
-            print(f"Collected full text ({len(full_text)} chars): {full_text[:100]}...")
-            
-            # Now generate speech for the complete text as one continuous stream
-            if full_text.strip():
-                print("Calling ElevenLabs TTS stream API...")
+                sentence_buffer += text_chunk
+                
+                # If we have a complete sentence, send it to TTS
+                if any(ending in sentence_buffer for ending in sentence_endings) and len(sentence_buffer.strip()) > 20:
+                    current_sentence = sentence_buffer.strip()
+                    sentence_buffer = ""
+                    
+                    print(f"[ElevenLabs] Streaming sentence: {current_sentence[:50]}...")
+                    audio_stream = self.client.text_to_speech.stream(
+                        voice_id=voice_id,
+                        text=current_sentence,
+                        model_id="eleven_flash_v2_5"
+                    )
+                    
+                    for audio_chunk in audio_stream:
+                        if isinstance(audio_chunk, bytes):
+                            yield (full_text, audio_chunk)
+
+            # Handle any remaining text in the buffer
+            if sentence_buffer.strip():
+                print(f"[ElevenLabs] Streaming final sentence: {sentence_buffer[:50]}...")
                 audio_stream = self.client.text_to_speech.stream(
                     voice_id=voice_id,
-                    text=full_text.strip(),
+                    text=sentence_buffer.strip(),
                     model_id="eleven_flash_v2_5"
                 )
-                
-                chunk_num = 0
-                # Yield audio chunks with the full text
                 for audio_chunk in audio_stream:
                     if isinstance(audio_chunk, bytes):
-                        chunk_num += 1
-                        print(f"ElevenLabs yielding chunk {chunk_num}, size: {len(audio_chunk)}")
                         yield (full_text, audio_chunk)
-                
-                print(f"ElevenLabs finished streaming {chunk_num} total chunks")
                     
         except Exception as e:
             print(f"ElevenLabs API Error during streaming TTS: {e}")

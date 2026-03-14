@@ -45,7 +45,7 @@ class TTSService:
         if provider == "elevenlabs":
             async for data in self.elevenlabs_repo.stream_speech_from_text_stream(
                 text_stream, 
-                voice_id=voice_id or "21m00Tcm4TlvDq8ikWAM"
+                voice_id=voice_id or "EXAVITQu4vr4xnSDxMaL"
             ):
                 yield data
         elif provider == "cartesia":
