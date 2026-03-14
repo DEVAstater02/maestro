@@ -46,7 +46,13 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
 
     try:
         # 1. Initial configuration message
-        initial_msg = await websocket.receive_json()
+        try:
+            initial_msg = await websocket.receive_json()
+        except json.JSONDecodeError as e:
+            raw_data = await websocket.receive_text()
+            print(f"[Curation] Failed to parse initial JSON: {e}. Received: {raw_data}")
+            raise ValueError(f"Invalid JSON configuration message: {e}")
+
         topic = initial_msg.get("topic", "Unknown Topic")
         user_persona = initial_msg.get("user_persona", "A student")
         subject = initial_msg.get("subject", "General")
@@ -100,10 +106,6 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                 conclusion_text = curation_service.check_conclusion(llm_response)
                 
                 if conclusion_text:
-                    # Inform user we are generating syllabus
-                    async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([conclusion_text]), provider="cartesia"):
-                        await websocket.send_bytes(audio_chunk)
-                    
                     await websocket.send_json({"type": "status", "data": "generating_syllabus", "text": conclusion_text})
                     
                     # 4. Generate Final Syllabus

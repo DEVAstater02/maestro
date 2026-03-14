@@ -25,6 +25,7 @@ export default function App() {
   const [curationText, setCurationText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcription, setTranscription] = useState("");
 
   const socketRef = useRef<WebSocket | null>(null);
@@ -97,12 +98,19 @@ export default function App() {
     if (ctx.state === "suspended") await ctx.resume();
 
     try {
+      setIsSpeaking(true);
       const blob = new Blob(chunks);
       const arrayBuf = await blob.arrayBuffer();
-      if (arrayBuf.byteLength === 0) return;
+      if (arrayBuf.byteLength === 0) {
+        setIsSpeaking(false);
+        return;
+      }
 
       const floatData = new Float32Array(arrayBuf);
-      if (floatData.length === 0) return;
+      if (floatData.length === 0) {
+        setIsSpeaking(false);
+        return;
+      }
 
       const audioBuf = ctx.createBuffer(1, floatData.length, 44100);
       audioBuf.getChannelData(0).set(floatData);
@@ -111,9 +119,15 @@ export default function App() {
       source.buffer = audioBuf;
       source.connect(ctx.destination);
       source.start(0);
-      return new Promise(resolve => { source.onended = resolve; });
+      return new Promise<void>(resolve => { 
+        source.onended = () => {
+          setIsSpeaking(false);
+          resolve();
+        }; 
+      });
     } catch (e) {
       console.error("Audio playback error", e);
+      setIsSpeaking(false);
     }
   };
 
@@ -321,46 +335,64 @@ export default function App() {
         </header>
 
         <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8">
-          <div className="max-w-lg space-y-4">
-            <p className="text-sm text-[var(--color-text-muted)] uppercase tracking-widest font-bold">Step 1: Customizing your experience</p>
-            <h2 className="text-2xl font-medium leading-tight">{curationText || "Let's personalize your learning path..."}</h2>
-            {transcription && (
-              <div className="mt-4 p-4 bg-[var(--color-surface-alt)] rounded-xl border border-[var(--color-border)] animate-fade-in">
-                <p className="text-xs text-[var(--color-text-muted)] mb-1">You said:</p>
-                <p className="text-sm italic">"{transcription}"</p>
+          {curationStatus === "generating_syllabus" ? (
+            <div className="flex flex-col items-center gap-6 animate-fade-in">
+              <div className="relative w-16 h-16">
+                <div className="absolute inset-0 border-4 border-[var(--color-surface-alt)] rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-[var(--color-text)] border-t-transparent rounded-full animate-spin"></div>
               </div>
-            )}
-          </div>
-
-          <div className="flex flex-col items-center gap-4">
-            <button
-              id="record-btn"
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              disabled={curationStatus !== "waiting_for_input"}
-              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all 
-                ${isRecording ? 'bg-red-500 scale-110' : 'bg-[var(--color-text)]'} 
-                ${curationStatus !== "waiting_for_input" ? 'opacity-20 cursor-not-allowed grayscale' : 'opacity-100'} 
-                text-[var(--color-bg)] shadow-xl relative`}
-            >
-              {isRecording && <span className="absolute inset-0 rounded-full bg-red-500 animate-pulse-ring opacity-50" />}
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" />
-              </svg>
-            </button>
-            <div className="h-6 flex items-center gap-2">
-              {isProcessing && (
-                <span className="flex gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:300ms]" />
-                </span>
-              )}
-              <p className="text-xs text-[var(--color-text-muted)]">
-                {isRecording ? "Listening..." : isProcessing ? "Thinking..." : "Hold to talk"}
-              </p>
+              <div className="space-y-2">
+                <h3 className="text-xl font-medium">Creating your personalized syllabus</h3>
+                <p className="text-sm text-[var(--color-text-muted)] max-w-xs mx-auto">
+                  Maestro is building a learning path tailored to your responses...
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="max-w-lg space-y-4">
+                <p className="text-sm text-[var(--color-text-muted)] uppercase tracking-widest font-bold">Step 1: Customizing your experience</p>
+                <h2 className="text-2xl font-medium leading-tight">{curationText || "Let's personalize your learning path..."}</h2>
+                {transcription && (
+                  <div className="mt-4 p-4 bg-[var(--color-surface-alt)] rounded-xl border border-[var(--color-border)] animate-fade-in">
+                    <p className="text-xs text-[var(--color-text-muted)] mb-1">You said:</p>
+                    <p className="text-sm italic">"{transcription}"</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col items-center gap-4">
+                <button
+                  id="record-btn"
+                  onMouseDown={startRecording}
+                  onMouseUp={stopRecording}
+                  onMouseLeave={isRecording ? stopRecording : undefined}
+                  disabled={curationStatus !== "waiting_for_input" || isSpeaking}
+                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all 
+                    ${isRecording ? 'bg-red-500 scale-110' : 'bg-[var(--color-text)]'} 
+                    ${(curationStatus !== "waiting_for_input" || isSpeaking) ? 'opacity-20 cursor-not-allowed grayscale' : 'opacity-100'} 
+                    text-[var(--color-bg)] shadow-xl relative`}
+                >
+                  {isRecording && <span className="absolute inset-0 rounded-full bg-red-500 animate-pulse-ring opacity-50" />}
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                </button>
+                <div className="h-6 flex items-center gap-2">
+                  {isProcessing && (
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  )}
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    {isRecording ? "Listening..." : isProcessing ? "Thinking..." : isSpeaking ? "Maestro is speaking..." : "Hold to talk"}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </main>
       </div>
     );
