@@ -8,8 +8,9 @@ class STTService:
         self.elevenlabs_repo = ElevenLabsRepository()
         self.cartesia_repo = CartesiaRepository()
         self.assemblyai_repo = AssemblyAI()
+        self.default_provider = os.getenv("STT_PROVIDER", "elevenlabs").lower()
 
-    async def transcribe(self, audio_file_path: str, provider: str = "elevenlabs") -> str:
+    async def transcribe(self, audio_file_path: str, provider: str = None) -> str:
         """
         Transcribe audio using the specified provider.
         
@@ -23,7 +24,7 @@ class STTService:
         if not audio_file_path or not os.path.exists(audio_file_path):
             raise ValueError(f"Audio file not found: {audio_file_path}")
 
-        provider = provider.lower()
+        provider = (provider or self.default_provider).lower()
         
         if provider == "elevenlabs":
             return self.elevenlabs_repo.transcribe_audio(audio_file_path)

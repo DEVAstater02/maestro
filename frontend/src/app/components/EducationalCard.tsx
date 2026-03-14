@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
 import PanZoomViewer from "./PanZoomViewer";
+import { motion } from "framer-motion";
+import { FileCode2, LayoutTemplate, Layers, AlertTriangle } from "lucide-react";
 
 /* ─── Types ─── */
 export interface StructuredVis {
@@ -58,16 +60,22 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
   const twoColumn = hasDiagram && hasExplanation;
 
   return (
-    <div className="w-full h-full overflow-auto p-6">
-      <div className="max-w-5xl mx-auto">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.98, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98, y: -10 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="w-full h-full overflow-auto p-6 sm:p-10 pb-40 scrollbar-thin"
+    >
+      <div className="max-w-5xl mx-auto space-y-8">
 
         {/* ─── Title ─── */}
-        <h2 className="text-lg font-semibold tracking-tight mb-5 text-center">
+        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-center text-[var(--color-text)]">
           {data.title}
         </h2>
 
         {/* ─── Main Content: Diagram + Explanation ─── */}
-        <div className={`${twoColumn ? "grid grid-cols-2 gap-px bg-[var(--color-border)]" : ""} rounded-xl border border-[var(--color-border)] overflow-hidden mb-4`}>
+        <div className={`${twoColumn ? "grid grid-cols-1 lg:grid-cols-2 gap-px bg-[var(--color-border)]" : ""} rounded-2xl border border-[var(--color-border)] overflow-hidden shadow-xl bg-[var(--color-bg)]`}>
 
           {/* Left: Diagram */}
           {hasDiagram && (
@@ -90,32 +98,38 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
                 <PanZoomViewer svgHtml={diagramSvg} diagramId={cardId} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <div className="w-4 h-4 border-2 border-[var(--color-border)] border-t-[var(--color-text)] rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-text)] rounded-full animate-spin" />
                 </div>
               )}
               {/* Column label */}
-              <span className="absolute top-3 left-3 text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
-                Structure
-              </span>
+              <div className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1 bg-[var(--color-surface-alt)]/80 backdrop-blur-md rounded-full border border-[var(--color-border-subtle)]">
+                <LayoutTemplate className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-widest font-bold">
+                  Structure
+                </span>
+              </div>
             </div>
           )}
 
           {/* Right: Explanation / Code */}
           {hasExplanation && (
-            <div className="bg-[var(--color-bg)] p-5 relative">
-              <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider font-medium">
-                {data.explanation!.heading}
-              </span>
+            <div className="bg-[var(--color-surface)] p-8 relative">
+              <div className="flex items-center gap-1.5 mb-5">
+                <FileCode2 className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                <span className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-widest font-bold">
+                  {data.explanation!.heading}
+                </span>
+              </div>
 
               {/* Code block */}
-              <pre className="mt-3 bg-[var(--color-surface-alt)] border border-[var(--color-border-subtle)] rounded-lg p-4 text-[12px] leading-[1.7] font-mono text-[var(--color-text)] overflow-x-auto whitespace-pre">
+              <pre className="bg-[#0d0d0d] border border-white/5 shadow-inner rounded-xl p-5 text-[13px] leading-[1.7] font-mono text-[#e5e5e5] overflow-x-auto whitespace-pre">
                 {data.explanation!.code}
               </pre>
 
               {/* Result highlight */}
               {data.explanation!.result && (
-                <div className="mt-3 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg p-3">
-                  <pre className="text-[12px] font-mono font-semibold text-[var(--color-text)] whitespace-pre">
+                <div className="mt-4 bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-xl p-4 shadow-sm">
+                  <pre className="text-[13px] font-mono font-medium text-[var(--color-text)] whitespace-pre">
                     {data.explanation!.result}
                   </pre>
                 </div>
@@ -132,19 +146,25 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
 
         {/* ─── Key Points ─── */}
         {data.keyPoints && data.keyPoints.length > 0 && (
-          <div className={`grid gap-3 mb-4 ${data.keyPoints.length === 1 ? "grid-cols-1" : data.keyPoints.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+          <div className={`grid gap-4 ${data.keyPoints.length === 1 ? "grid-cols-1" : data.keyPoints.length === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 md:grid-cols-3"}`}>
             {data.keyPoints.map((kp, i) => (
-              <div
+              <motion.div
                 key={i}
-                className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] p-4"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * i, duration: 0.4 }}
+                className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm hover:shadow-md transition-shadow"
               >
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-text)] mb-1">
-                  {kp.title}
-                </p>
-                <p className="text-[12px] text-[var(--color-text-secondary)] leading-relaxed">
+                <div className="flex items-center gap-2 mb-3">
+                  <Layers className="w-4 h-4 text-[var(--color-text-muted)]" />
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-text)]">
+                    {kp.title}
+                  </p>
+                </div>
+                <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
                   {kp.text}
                 </p>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
@@ -186,6 +206,6 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
         )}
 
       </div>
-    </div>
+    </motion.div>
   );
 }

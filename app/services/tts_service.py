@@ -6,8 +6,20 @@ class TTSService:
     def __init__(self):
         self.elevenlabs_repo = ElevenLabsRepository()
         self.cartesia_repo = CartesiaRepository()
+        self.default_provider = os.getenv("TTS_PROVIDER", "elevenlabs").lower()
+        self.cartesia_api_key = os.getenv("CARTESIA_API_KEY", "")
 
-    def generate_speech(self, text: str, provider: str = "elevenlabs", voice_id: str = None, speed: float = 1.0) -> bytes:
+    def _get_effective_provider(self, provider: str) -> str:
+        """Determines the provider to use, with fallback logic."""
+        p = (provider or self.default_provider).lower()
+        if p == "cartesia":
+            # Fallback if API key is obviously invalid or missing
+            if not self.cartesia_api_key or self.cartesia_api_key.lower() == "randoms":
+                print("[TTSService] WARNING: Cartesia selected but API key is missing or invalid. Falling back to ElevenLabs.")
+                return "elevenlabs"
+        return p
+
+    def generate_speech(self, text: str, provider: str = None, voice_id: str = None, speed: float = 1.0) -> bytes:
         """
         Generate speech from text (batch).
         
@@ -20,7 +32,7 @@ class TTSService:
         Returns:
             bytes: Audio data.
         """
-        provider = provider.lower()
+        provider = self._get_effective_provider(provider)
         if provider == "elevenlabs":
             return self.elevenlabs_repo.generate_speech(text, voice_id=voice_id or "21m00Tcm4TlvDq8ikWAM")
         elif provider == "cartesia":
@@ -41,7 +53,7 @@ class TTSService:
         Yields:
             tuple: (full_text, audio_chunk)
         """
-        provider = provider.lower()
+        provider = self._get_effective_provider(provider)
         if provider == "elevenlabs":
             async for data in self.elevenlabs_repo.stream_speech_from_text_stream(
                 text_stream, 

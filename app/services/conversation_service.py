@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 from app.repositories import claude, gemini
 from app.repositories.persistence_repo import PersistenceRepository
 from app.prompts.session_memory import SESSION_MEMORY_PROMPT

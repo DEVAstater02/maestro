@@ -116,7 +116,7 @@ async def conversation_ws_handler(
 
             start_time = time.perf_counter()
             # 3 - Send audio file to STT API to get the transcript
-            transcribed_text = await stt_service.transcribe(file_name, provider="cartesia")
+            transcribed_text = await stt_service.transcribe(file_name)
             
             try:
                 os.remove(file_name)
@@ -159,7 +159,7 @@ async def conversation_ws_handler(
             
             try:
                 # Stream audio chunks based on the provider (Cartesia/ElevenLabs now use sentence-based streaming)
-                async for chunk_text, audio_chunk in tts_service.stream_speech(tracked_text_stream(text_stream), provider="cartesia"):
+                async for chunk_text, audio_chunk in tts_service.stream_speech(tracked_text_stream(text_stream)):
                     if not first_audio_chunk:
                         first_audio_chunk = True
                         print(f"[Maestro] TTS TTFB (Time to First Byte): {time.perf_counter() - tts_start_time:.4f}s")

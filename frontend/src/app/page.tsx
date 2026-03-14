@@ -3,12 +3,15 @@
 import { useState, useRef, useEffect } from "react";
 import LearningScreen from "./components/LearningScreen";
 import AuthScreen from "./components/AuthScreen";
+import VoiceOrb from "./components/VoiceOrb";
 
 import DashboardScreen from "./components/DashboardScreen";
 
 type FlowState = "loading" | "auth" | "dashboard" | "splash" | "curation" | "learning";
 
 import { ThemeToggle } from "./components/ThemeToggle";
+import { motion, AnimatePresence } from "framer-motion";
+import { Mic, Square, Sparkles, ArrowUp, Loader2 } from "lucide-react";
 
 export default function App() {
   const [flow, setFlow] = useState<FlowState>("loading");
@@ -32,9 +35,12 @@ export default function App() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserNodeRef = useRef<AnalyserNode | null>(null);
+  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
   const responseAudioChunksRef = useRef<ArrayBuffer[]>([]);
   const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isReceivingAudioRef = useRef(false);
+  const playbackChainRef = useRef<Promise<void>>(Promise.resolve());
 
   // ── On mount: check for a stored token ──────────────────────────────────
   useEffect(() => {
@@ -93,7 +99,15 @@ export default function App() {
   // ── Audio playback ───────────────────────────────────────────────────────
   const playAudio = async (chunks: ArrayBuffer[]) => {
     if (chunks.length === 0) return;
-    if (!audioContextRef.current) audioContextRef.current = new AudioContext();
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContext();
+      const analyser = audioContextRef.current.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      analyser.connect(audioContextRef.current.destination);
+      analyserNodeRef.current = analyser;
+      setAnalyserNode(analyser);
+    }
     const ctx = audioContextRef.current;
     if (ctx.state === "suspended") await ctx.resume();
 
@@ -106,18 +120,29 @@ export default function App() {
         return;
       }
 
-      const floatData = new Float32Array(arrayBuf);
-      if (floatData.length === 0) {
-        setIsSpeaking(false);
-        return;
-      }
+      // Clone the buffer because decodeAudioData detaches the original
+      const arrayBufCopy = arrayBuf.slice(0);
 
-      const audioBuf = ctx.createBuffer(1, floatData.length, 44100);
-      audioBuf.getChannelData(0).set(floatData);
+      let audioBuf: AudioBuffer;
+      try {
+        // Try decoding as standard containerised audio (MP3, WAV from ElevenLabs)
+        audioBuf = await ctx.decodeAudioData(arrayBuf);
+      } catch (decodeError) {
+        console.warn("Standard audio decoding failed, attempting raw PCM f32le 44.1kHz (Cartesia)...", decodeError);
+
+        const floatData = new Float32Array(arrayBufCopy);
+        if (floatData.length === 0) {
+          setIsSpeaking(false);
+          return;
+        }
+
+        audioBuf = ctx.createBuffer(1, floatData.length, 44100);
+        audioBuf.getChannelData(0).set(floatData);
+      }
 
       const source = ctx.createBufferSource();
       source.buffer = audioBuf;
-      source.connect(ctx.destination);
+      source.connect(analyserNodeRef.current ?? ctx.destination);
       source.start(0);
       return new Promise<void>(resolve => { 
         source.onended = () => {
@@ -172,7 +197,9 @@ export default function App() {
             isReceivingAudioRef.current = false;
             const chunksToPlay = [...responseAudioChunksRef.current];
             responseAudioChunksRef.current = [];
-            await playAudio(chunksToPlay);
+            
+            // Sequence playback to avoid overlapping
+            playbackChainRef.current = playbackChainRef.current.then(() => playAudio(chunksToPlay));
           }
         }, 150);
       }
@@ -197,8 +224,33 @@ export default function App() {
 
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop());
     setIsRecording(false);
   };
+
+  // ── Spacebar push-to-talk ────────────────────────────────────────────────
+  useEffect(() => {
+    if (flow !== "curation") return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat) return;
+      if (curationStatus !== "waiting_for_input" || isSpeaking || isRecording) return;
+      e.preventDefault();
+      startRecording();
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space") return;
+      if (isRecording) stopRecording();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [flow, curationStatus, isSpeaking, isRecording]);
 
   // ── Loading screen ───────────────────────────────────────────────────────
   if (flow === "loading") {
@@ -240,93 +292,129 @@ export default function App() {
   // ── Splash (start learning) ──────────────────────────────────────────────
   if (flow === "splash") {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-[var(--color-bg)] p-6">
-        {/* Header with user info + sign out */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0 }}
+        className="h-screen flex flex-col items-center justify-center bg-[var(--color-bg)] p-6 relative overflow-hidden"
+      >
+        {/* Header */}
+        <motion.header 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1, duration: 0.5, ease: "easeOut" }}
+          className="absolute top-0 left-0 right-0 flex items-center justify-between px-8 h-20 z-10"
+        >
           <button 
             onClick={() => setFlow("dashboard")}
-            className="text-base font-semibold tracking-tight hover:opacity-70 transition-opacity focus:outline-none"
+            className="text-xl font-bold tracking-tighter hover:opacity-70 transition-opacity focus:outline-none"
           >
             maestro
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {userName && (
-              <span className="text-xs text-[var(--color-text-muted)]">
-                Hi, <span className="font-medium text-[var(--color-text)]">{userName}</span>
+              <span className="text-sm text-[var(--color-text-muted)] font-medium hidden sm:inline-block">
+                Hi, <span className="text-[var(--color-text)]">{userName}</span>
               </span>
             )}
             <ThemeToggle />
             <button
               id="sign-out-btn"
               onClick={handleSignOut}
-              className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors border border-[var(--color-border)] rounded-full px-3 py-1"
+              className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors border border-[var(--color-border-subtle)] hover:border-[var(--color-border)] rounded-full px-4 py-2"
             >
               Sign Out
             </button>
           </div>
-        </div>
+        </motion.header>
 
-        <div className="max-w-md w-full text-center space-y-8">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">maestro</h1>
-            <p className="text-[var(--color-text-muted)]">Your personalized AI voice tutor</p>
+        {/* Ambient background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] bg-[var(--color-text)]/5 blur-[120px] rounded-full pointer-events-none" />
+
+        <motion.div 
+          initial={{ y: 20, opacity: 0, scale: 0.95 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="max-w-2xl w-full text-center space-y-8 z-10"
+        >
+          <div>
+            <motion.h1 
+              className="text-3xl sm:text-4xl font-bold tracking-tight text-[var(--color-text)]"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.8 }}
+            >
+              What do you want to learn?
+            </motion.h1>
           </div>
 
-          <div className="space-y-4 text-left bg-[var(--color-surface-alt)] p-6 rounded-2xl border border-[var(--color-border)]">
-            <div className="space-y-1">
-              <label className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] font-semibold">What do you want to learn?</label>
-              <input
-                id="topic-input"
-                value={topic}
-                onChange={e => setTopic(e.target.value)}
-                placeholder="e.g. Quantum Physics, Spanish Verbs..."
-                className="w-full bg-transparent border-b border-[var(--color-border)] py-2 focus:outline-none focus:border-[var(--color-text)] transition-colors"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] font-semibold">Subject</label>
-              <input
-                id="subject-input"
-                value={subject}
-                onChange={e => setSubject(e.target.value)}
-                className="w-full bg-transparent border-b border-[var(--color-border)] py-2 focus:outline-none focus:border-[var(--color-text)] transition-colors"
-              />
-            </div>
-          </div>
-
-          <button
-            id="start-learning-btn"
-            onClick={startCuration}
-            disabled={!topic}
-            className="w-full py-4 bg-[var(--color-text)] text-[var(--color-bg)] rounded-full font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.6 }}
+            className="w-full relative group mx-auto"
           >
-            Start Learning
-          </button>
-        </div>
-      </div>
+            <div className="max-w-3xl mx-auto w-full px-4 sm:px-8 mt-6">
+              <div className="flex items-center w-full bg-[#f4f4f4] dark:bg-[#2f2f2f] rounded-[26px] p-1.5 pl-4 shadow-sm focus-within:shadow-md transition-shadow">
+                <input
+                  id="topic-input"
+                  value={topic}
+                  onChange={e => setTopic(e.target.value)}
+                  placeholder="Quantum Physics, LLMs, Math ..."
+                  className="flex-1 bg-transparent py-2.5 px-2 text-[15px] text-[var(--color-text)] focus:outline-none placeholder:text-[#8e8e8e] dark:placeholder:text-[#9e9e9e]"
+                  autoComplete="off"
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && topic) {
+                      startCuration();
+                    }
+                  }}
+                />
+
+                <button
+                  id="start-learning-btn"
+                  onClick={startCuration}
+                  disabled={!topic}
+                  className={`h-8 w-8 rounded-full flex items-center justify-center transition-all shrink-0 mr-1
+                    ${topic 
+                      ? "bg-black text-white dark:bg-white dark:text-black" 
+                      : "bg-[#e5e5e5] text-white dark:bg-[#676767] dark:text-[#2f2f2f] cursor-not-allowed"
+                    }`}
+                >
+                  <ArrowUp className="w-5 h-5" strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </motion.div>
     );
   }
 
   // ── Curation screen ──────────────────────────────────────────────────────
   if (flow === "curation") {
+    const orbActive = isRecording || isSpeaking;
+    const orbState = isSpeaking ? "speaking" : isRecording ? "recording" : isProcessing ? "processing" : "idle";
     return (
-      <div className="h-screen flex flex-col bg-[var(--color-bg)]">
-        <header className="flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
-          <div className="flex items-center gap-2.5">
-            <button 
-              onClick={() => {
-                socketRef.current?.close();
-                setFlow("dashboard");
-              }}
-              className="flex items-center gap-2.5 hover:opacity-70 transition-opacity focus:outline-none"
-            >
-              <span className="text-base font-semibold tracking-tight">maestro</span>
-              <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">Curation</span>
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="h-screen flex flex-col bg-[var(--color-bg)] overflow-hidden relative"
+      >
+        {/* Header */}
+        <header className="flex items-center justify-between px-8 h-16 z-20 relative">
+          <button
+            onClick={() => {
+              socketRef.current?.close();
+              setFlow("dashboard");
+            }}
+            className="text-lg font-bold tracking-tighter text-[var(--color-text)]/80 hover:text-[var(--color-text)] transition-colors focus:outline-none"
+          >
+            maestro
+          </button>
+          <div className="flex items-center gap-4">
             {userName && (
-              <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline">
+              <span className="text-sm text-[var(--color-text-muted)] font-medium hidden sm:inline">
                 {userName}
               </span>
             )}
@@ -334,67 +422,99 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8">
+        {/* Main content – centered orb */}
+        <main className="flex-1 flex flex-col items-center justify-center relative z-10">
           {curationStatus === "generating_syllabus" ? (
-            <div className="flex flex-col items-center gap-6 animate-fade-in">
-              <div className="relative w-16 h-16">
-                <div className="absolute inset-0 border-4 border-[var(--color-surface-alt)] rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-[var(--color-text)] border-t-transparent rounded-full animate-spin"></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center gap-8"
+            >
+              <div className="relative w-20 h-20">
+                <Loader2 className="w-full h-full text-[var(--color-text)] animate-spin" strokeWidth={1.5} />
               </div>
-              <div className="space-y-2">
-                <h3 className="text-xl font-medium">Creating your personalized syllabus</h3>
-                <p className="text-sm text-[var(--color-text-muted)] max-w-xs mx-auto">
-                  Maestro is building a learning path tailored to your responses...
+              <div className="space-y-3 text-center">
+                <h3 className="text-2xl font-semibold tracking-tight text-[var(--color-text)]">Creating your syllabus</h3>
+                <p className="text-base text-[var(--color-text-muted)] max-w-sm mx-auto">
+                  Maestro is building a learning path perfectly tailored to you.
                 </p>
               </div>
-            </div>
+            </motion.div>
           ) : (
-            <>
-              <div className="max-w-lg space-y-4">
-                <p className="text-sm text-[var(--color-text-muted)] uppercase tracking-widest font-bold">Step 1: Customizing your experience</p>
-                <h2 className="text-2xl font-medium leading-tight">{curationText || "Let's personalize your learning path..."}</h2>
-                {transcription && (
-                  <div className="mt-4 p-4 bg-[var(--color-surface-alt)] rounded-xl border border-[var(--color-border)] animate-fade-in">
-                    <p className="text-xs text-[var(--color-text-muted)] mb-1">You said:</p>
-                    <p className="text-sm italic">"{transcription}"</p>
-                  </div>
-                )}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center gap-10"
+            >
+              {/* ── THE ORB ── */}
+              <div className="relative flex items-center justify-center">
+                {/* Outermost ambient room glow */}
+                <motion.div
+                  animate={{
+                    opacity: orbActive ? 0.7 : 0.2,
+                    scale: orbActive ? 1.15 : 1,
+                  }}
+                  transition={{ duration: 1.2, ease: "easeInOut" }}
+                  className="absolute w-[500px] h-[500px] rounded-full pointer-events-none"
+                  style={{
+                    background: 'radial-gradient(circle, rgba(30,200,120,0.3) 0%, rgba(10,140,80,0.08) 45%, transparent 70%)',
+                    filter: 'blur(50px)',
+                  }}
+                />
+
+                {/* Canvas-based audio-reactive orb */}
+                <VoiceOrb
+                  analyserNode={analyserNode}
+                  state={orbState}
+                  size={340}
+                />
               </div>
 
-              <div className="flex flex-col items-center gap-4">
-                <button
-                  id="record-btn"
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onMouseLeave={isRecording ? stopRecording : undefined}
-                  disabled={curationStatus !== "waiting_for_input" || isSpeaking}
-                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-all 
-                    ${isRecording ? 'bg-red-500 scale-110' : 'bg-[var(--color-text)]'} 
-                    ${(curationStatus !== "waiting_for_input" || isSpeaking) ? 'opacity-20 cursor-not-allowed grayscale' : 'opacity-100'} 
-                    text-[var(--color-bg)] shadow-xl relative`}
-                >
-                  {isRecording && <span className="absolute inset-0 rounded-full bg-red-500 animate-pulse-ring opacity-50" />}
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" />
-                  </svg>
-                </button>
-                <div className="h-6 flex items-center gap-2">
-                  {isProcessing && (
-                    <span className="flex gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:150ms]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:300ms]" />
-                    </span>
+              {/* Status text below orb */}
+              <div className="h-8 flex items-center justify-center">
+                <AnimatePresence mode="wait">
+                  {isProcessing ? (
+                    <motion.div
+                      key="processing"
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="flex gap-1.5"
+                    >
+                      {[0, 1, 2].map(i => (
+                        <motion.span
+                          key={i}
+                          className="w-1.5 h-1.5 rounded-full bg-purple-400"
+                          animate={{ opacity: [0.3, 1, 0.3] }}
+                          transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                        />
+                      ))}
+                    </motion.div>
+                  ) : (
+                    <motion.p
+                      key="status-text"
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="text-sm font-medium text-[var(--color-text-muted)] tracking-wider uppercase"
+                      style={{ fontSize: '11px', letterSpacing: '0.15em' }}
+                    >
+                      {isRecording ? "Listening..." : isSpeaking ? "Speaking" : "Hold space to talk"}
+                    </motion.p>
                   )}
-                  <p className="text-xs text-[var(--color-text-muted)]">
-                    {isRecording ? "Listening..." : isProcessing ? "Thinking..." : isSpeaking ? "Maestro is speaking..." : "Hold to talk"}
-                  </p>
-                </div>
+                </AnimatePresence>
               </div>
-            </>
+
+              {/* Hidden interactive mic button – functional but invisible, keyboard-driven */}
+              <button
+                id="record-btn"
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onMouseLeave={isRecording ? stopRecording : undefined}
+                disabled={curationStatus !== "waiting_for_input" || isSpeaking}
+                className="sr-only"
+                aria-label="Hold to record"
+              />
+            </motion.div>
           )}
         </main>
-      </div>
+      </motion.div>
     );
   }
 

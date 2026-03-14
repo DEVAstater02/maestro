@@ -18,28 +18,8 @@ interface CardEntry {
   failed?: boolean;
 }
 
-/* ─── Icons ─── */
-const MicIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="2" width="6" height="12" rx="3" />
-    <path d="M5 10v2a7 7 0 0 0 14 0v-2" />
-    <line x1="12" y1="22" x2="12" y2="19" />
-  </svg>
-);
-
-const StopIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-    <rect x="4" y="4" width="16" height="16" rx="3" />
-  </svg>
-);
-
-const ArrowUpIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="12" y1="19" x2="12" y2="5" />
-    <polyline points="5 12 12 5 19 12" />
-  </svg>
-);
-
+import { motion, AnimatePresence } from "framer-motion";
+import { Mic, Square, ArrowUp, Zap, Sparkles, RefreshCw, XCircle } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function LearningScreen({ 
@@ -351,31 +331,34 @@ export default function LearningScreen({
     <div className="flex flex-col h-screen bg-[var(--color-bg)]">
 
       {/* ─── Header ─── */}
-      <header className="flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
+      <header className="flex items-center justify-between px-8 h-20 border-b border-[var(--color-border-subtle)]/50 z-20 bg-[var(--color-bg)]/80 backdrop-blur-md relative">
         <div className="flex items-center gap-2.5">
           <button 
             onClick={onHome}
             className="flex items-center gap-2.5 hover:opacity-70 transition-opacity focus:outline-none"
           >
-            <span className="text-base font-semibold tracking-tight">maestro</span>
-            <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">voice tutor</span>
+            <Sparkles className="w-5 h-5 text-[var(--color-text)]" />
+            <span className="text-lg font-bold tracking-tighter">maestro</span>
+            <span className="text-xs text-[var(--color-text-muted)] tracking-widest uppercase font-medium ml-2">voice tutor</span>
           </button>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {connectionStatus !== "connected" && connectionStatus !== "connecting" && (
             <button 
               onClick={connectWS}
-              className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-md hover:border-[var(--color-text)] transition-all mr-1"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-full hover:border-[var(--color-text)] transition-all"
             >
-              Reconnect
+              <RefreshCw className="w-3 h-3" /> Reconnect
             </button>
           )}
-          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-          <span className="text-[11px] text-[var(--color-text-muted)] border-r border-[var(--color-border)] pr-3 mr-1">
-            {connectionStatus === "connected" ? "Connected" :
-              connectionStatus === "connecting" ? "Connecting" : 
-              connectionStatus === "error" ? "Error" : "Offline"}
-          </span>
+          <div className="flex items-center gap-2 bg-[var(--color-surface-alt)] px-3 py-1.5 rounded-full border border-[var(--color-border-subtle)]">
+            <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+            <span className="text-[11px] font-medium tracking-wide text-[var(--color-text-muted)]">
+              {connectionStatus === "connected" ? "Connected" :
+                connectionStatus === "connecting" ? "Connecting" : 
+                connectionStatus === "error" ? "Error" : "Offline"}
+            </span>
+          </div>
           <ThemeToggle />
         </div>
       </header>
@@ -393,9 +376,9 @@ export default function LearningScreen({
               {!isLatest && (
                 <button
                   onClick={() => setActiveIndex(cards.length - 1)}
-                  className="absolute top-4 right-4 h-8 px-3 bg-[var(--color-text)] text-[var(--color-bg)] text-[11px] font-medium rounded-full flex items-center gap-1.5 hover:opacity-80 transition-opacity z-10"
+                  className="absolute top-4 right-4 h-9 px-4 bg-[var(--color-text)] text-[var(--color-bg)] text-xs font-semibold rounded-full flex items-center gap-2 hover:opacity-80 transition-opacity z-10 shadow-lg"
                 >
-                  <ArrowUpIcon /> Latest
+                  <ArrowUp className="w-4 h-4" /> Latest
                 </button>
               )}
 
@@ -467,38 +450,63 @@ export default function LearningScreen({
         )}
       </main>
 
-      {/* ─── Controls ─── */}
-      <div className="border-t border-[var(--color-border)] px-6 py-5">
-        <div className="flex flex-col items-center gap-3">
+      {/* ─── Controls (Floating Dock Style) ─── */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+        <div className="glass-panel rounded-full px-6 py-3 flex items-center gap-4 shadow-2xl">
+          <div className="flex items-center w-24 overflow-hidden">
+             <AnimatePresence mode="wait">
+               {isBusy ? (
+                  <motion.div 
+                    key="busy"
+                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
+                    className="flex items-center gap-1.5"
+                  >
+                    {[0, 1, 2].map(i => (
+                      <motion.span 
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full bg-[var(--color-text)]"
+                        animate={{ y: [0, -4, 0] }}
+                        transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
+                      />
+                    ))}
+                    <span className="text-xs font-medium tracking-wide ml-2">{status}</span>
+                  </motion.div>
+                ) : (
+                  <motion.span 
+                    key="idle"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="text-xs text-[var(--color-text-muted)] font-medium tracking-wide whitespace-nowrap"
+                  >
+                    {status}
+                  </motion.span>
+                )}
+             </AnimatePresence>
+          </div>
+          
+          <div className="w-[1px] h-6 bg-[var(--color-border)] opacity-50" />
+
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={!canRecord && !isRecording}
-            className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 focus:outline-none
+            className={`relative w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none
               ${isRecording
-                ? "bg-[var(--color-text)] text-[var(--color-bg)] scale-105"
+                ? "bg-[var(--color-text)] text-[var(--color-bg)] scale-110 shadow-[0_0_20px_rgba(0,0,0,0.2)] dark:shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                 : canRecord
-                  ? "bg-[var(--color-text)] text-[var(--color-bg)] hover:opacity-80"
-                  : "bg-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed"
+                  ? "bg-[var(--color-text)] text-[var(--color-bg)] hover:opacity-90 hover:scale-105"
+                  : "bg-[var(--color-surface-alt)] border border-[var(--color-border)] text-[var(--color-text-muted)] cursor-not-allowed"
               }`}
           >
             {isRecording && (
-              <span className="absolute inset-0 rounded-full bg-[var(--color-text)] animate-pulse-ring" />
+              <motion.div
+                className="absolute inset-0 rounded-full border border-[var(--color-text)]/30"
+                animate={{ scale: [1, 1.4], opacity: [1, 0] }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: "easeOut" }}
+              />
             )}
-            <span className="relative z-10">
-              {isRecording ? <StopIcon /> : <MicIcon />}
+            <span className="relative z-10 flex items-center justify-center">
+              {isRecording ? <Square className="w-5 h-5 fill-current" /> : <Mic className="w-5 h-5" />}
             </span>
           </button>
-
-          <div className="flex items-center gap-2 h-5">
-            {isBusy && (
-              <span className="flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:0ms]" />
-                <span className="w-1 h-1 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:150ms]" />
-                <span className="w-1 h-1 rounded-full bg-[var(--color-text)] animate-bounce [animation-delay:300ms]" />
-              </span>
-            )}
-            <span className="text-[12px] text-[var(--color-text-muted)]">{status}</span>
-          </div>
         </div>
       </div>
     </div>
