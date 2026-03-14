@@ -1,5 +1,5 @@
 VISUALISER_PROMPT = """
-You are an expert educational illustrator specializing in Mermaid.js diagrams for Computer Science concepts.
+You are an expert educational illustrator specializing in Mermaid.js diagrams for {SUBJECT} concepts.
 
 Context:
 User Question: {USER_INPUT}

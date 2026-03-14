@@ -64,7 +64,7 @@ class VisualizerService:
 
         return "\n".join(sanitized)
 
-    async def generate_visualisation(self, user_input: str, tutor_response: str):
+    async def generate_visualisation(self, user_input: str, tutor_response: str, subject: str = "Computer Science"):
         """
         Generate a visualisation (Mermaid or structured JSON) based on the conversation.
         
@@ -83,7 +83,8 @@ class VisualizerService:
             print("[Visualizer] Generating visualisation...")
             visualiser_to_llm = VISUALISER_PROMPT.format(
                 USER_INPUT=user_input,
-                TUTOR_RESPONSE=tutor_response
+                TUTOR_RESPONSE=tutor_response,
+                SUBJECT=subject
             )
             
             vis_data = None

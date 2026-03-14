@@ -74,6 +74,9 @@ class SyllabusService:
             print(f"[SyllabusService] Error: {e}")
             return {"error": str(e), "raw_response": response_text}
 
+    def get_syllabus(self, syllabus_id: str) -> Optional[dict]:
+        return self.persistence_repo.get_syllabus(syllabus_id)
+
     def list_syllabuses(self, user_id: str) -> List[dict]:
         return self.persistence_repo.get_syllabuses_by_user(user_id)
 

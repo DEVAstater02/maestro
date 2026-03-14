@@ -38,6 +38,7 @@ export default function VoiceOrb({ analyserNode, state, size = 340 }: VoiceOrbPr
       const cx = w / 2;
       const cy = h / 2;
       const baseRadius = w * 0.36;
+      const scaleFactor = size / 340; // scale deformations for small sizes
       const currentState = stateRef.current;
       const analyser = analyserRef.current;
 
@@ -83,9 +84,10 @@ export default function VoiceOrb({ analyserNode, state, size = 340 }: VoiceOrbPr
 
       // ── Build deformed-circle orb path ──
       const N = 120;
-      const deform =
+      const deform = (
         currentState === "speaking"  ? 9  + amp * 22 :
-        currentState === "recording" ? 6  + amp * 14 : 2.5;
+        currentState === "recording" ? 6  + amp * 14 : 2.5
+      ) * scaleFactor;
 
       const pts: [number, number][] = [];
       for (let i = 0; i <= N; i++) {

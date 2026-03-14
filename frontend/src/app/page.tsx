@@ -1,27 +1,26 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import LearningScreen from "./components/LearningScreen";
+import { useRouter } from "next/navigation";
 import AuthScreen from "./components/AuthScreen";
 import VoiceOrb from "./components/VoiceOrb";
 
 import DashboardScreen from "./components/DashboardScreen";
 
-type FlowState = "loading" | "auth" | "dashboard" | "splash" | "curation" | "learning";
+type FlowState = "loading" | "auth" | "dashboard" | "splash" | "curation";
 
 import { ThemeToggle } from "./components/ThemeToggle";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Square, Sparkles, ArrowUp, Loader2 } from "lucide-react";
 
 export default function App() {
+  const router = useRouter();
   const [flow, setFlow] = useState<FlowState>("loading");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
 
   const [topic, setTopic] = useState("");
   const [subject, setSubject] = useState("Science");
-  const [finalSyllabus, setFinalSyllabus] = useState<any>(null);
-  const [activeSyllabusId, setActiveSyllabusId] = useState<string | undefined>(undefined);
 
   // Status for Curation
   const [curationStatus, setCurationStatus] = useState("Initializing...");
@@ -179,10 +178,11 @@ export default function App() {
         } else if (msg.type === "transcription") {
           setTranscription(msg.data);
         } else if (msg.type === "final_syllabus") {
-          setFinalSyllabus(msg.data);
-          setActiveSyllabusId(msg.data?._id);
-          setFlow("learning");
+          const syllabusId = msg.data?._id;
           ws.close();
+          if (syllabusId) {
+            router.push(`/learn/${syllabusId}`);
+          }
         }
       } else {
         if (!isReceivingAudioRef.current) {
@@ -278,12 +278,9 @@ export default function App() {
         onSignOut={handleSignOut}
         onStartNew={() => {
           setFlow("splash");
-          setActiveSyllabusId(undefined);
         }}
-        onResumeSyllabus={(syllabus: any, syllabusId: string) => {
-          setFinalSyllabus(syllabus);
-          setActiveSyllabusId(syllabusId);
-          setFlow("learning");
+        onResumeSyllabus={(_syllabus: any, syllabusId: string) => {
+          router.push(`/learn/${syllabusId}`);
         }}
       />
     );
@@ -482,7 +479,7 @@ export default function App() {
                       {[0, 1, 2].map(i => (
                         <motion.span
                           key={i}
-                          className="w-1.5 h-1.5 rounded-full bg-purple-400"
+                          className="w-1.5 h-1.5 rounded-full bg-teal-400"
                           animate={{ opacity: [0.3, 1, 0.3] }}
                           transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
                         />
@@ -518,11 +515,5 @@ export default function App() {
     );
   }
 
-  return (
-    <LearningScreen 
-      initialSyllabus={finalSyllabus} 
-      syllabusId={activeSyllabusId}
-      onHome={() => setFlow("dashboard")}
-    />
-  );
+  return null;
 }
