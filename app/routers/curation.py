@@ -17,31 +17,6 @@ async def to_async_iterator(iterator):
     for item in iterator:
         yield item
 
-def extract_json(text: str):
-    """Robustly extract and parse JSON from LLM response."""
-    # 1. Look for markdown blocks
-    json_match = re.search(r'```(?:json)?\s*(\{.*\})\s*```', text, re.DOTALL)
-    candidate = json_match.group(1) if json_match else None
-    
-    if not candidate:
-        # 2. Look for the first { and last }
-        start = text.find('{')
-        end = text.rfind('}')
-        if start != -1 and end != -1:
-            candidate = text[start:end+1]
-            
-    if candidate:
-        try:
-            return json.loads(candidate)
-        except json.JSONDecodeError as e:
-            print(f"[JSON Extraction] Direct decode failed: {e}. Text length: {len(candidate)}")
-            try:
-                cleaned = re.sub(r',\s*([}\]])', r'\1', candidate)
-                return json.loads(cleaned)
-            except:
-                raise e
-    raise ValueError("No valid JSON found in text")
-
 @router.websocket("/ws/curation")
 async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query(default=None)):
     await websocket.accept()
@@ -132,20 +107,17 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                     await websocket.send_json({"type": "status", "data": "generating_syllabus", "text": conclusion_text})
                     
                     # 4. Generate Final Syllabus
-                    syllabus_response = await curation_service.generate_syllabus(
+                    syllabus_json = await curation_service.generate_syllabus(
                         topic=topic,
                         user_persona=user_persona,
                         subject=subject,
                         conclusion_text=conclusion_text
                     )
 
-                    print(f"[Curation] Syllabus Response: {syllabus_response}")
+                    print(f"[Curation] Syllabus Generated: {list(syllabus_json.keys())}")
                     
-                    # Extract JSON
-                    try:
-                        syllabus_json = extract_json(syllabus_response)
-                        
-                        # Store the generated syllabus to db
+                    # Store the generated syllabus to db if it's not a raw/error response
+                    if "raw_response" not in syllabus_json and "error" not in syllabus_json:
                         try:
                             syllabus_id = curation_service.store_syllabus(
                                 user_id=user_id,
@@ -156,10 +128,6 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                             syllabus_json["_id"] = syllabus_id
                         except Exception as e:
                             print(f"[Curation] Failed to store syllabus to DB: {e}")
-                            
-                    except Exception as e:
-                        print(f"[Curation] JSON Extraction Final Failure: {e}")
-                        syllabus_json = {"error": "Could not parse syllabus JSON", "raw": syllabus_response}
                     
                     await websocket.send_json({"type": "final_syllabus", "data": syllabus_json})
                     print("[Curation] Syllabus generated and sent. Closing connection.")

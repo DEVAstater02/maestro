@@ -1,13 +1,15 @@
 from app.repositories.claude import ClaudeRepository
 from app.repositories.persistence_repo import PersistenceRepository
 from app.prompts.curation import CURATION_PROMPT
-from app.prompts.syllabus import SYLLABUS_GENERATION_PROMPT
+from app.services.syllabus_service import SyllabusService
+from app.models.user_models import SyllabusRequest
 import re
 
 class CurationService:
     def __init__(self):
         self.llm_repo = ClaudeRepository()
         self.persistence_repo = PersistenceRepository()
+        self.syllabus_service = SyllabusService()
 
     def get_user_profile(self, user_id: str) -> str:
         user_record = self.persistence_repo.get_user(user_id)
@@ -30,15 +32,13 @@ class CurationService:
         )
         return await self.llm_repo.generate_response(prompt=prompt)
 
-    async def generate_syllabus(self, topic: str, user_persona: str, subject: str, conclusion_text: str) -> str:
-        final_syllabus_prompt = SYLLABUS_GENERATION_PROMPT.replace("{{TOPIC}}", f"{topic} (Context: {conclusion_text})")
-        final_syllabus_prompt = final_syllabus_prompt.replace("{{USER_PERSONA}}", user_persona)
-        final_syllabus_prompt = final_syllabus_prompt.replace("{{SUBJECT}}", subject)
-        
-        return await self.llm_repo.generate_response(
-            prompt=final_syllabus_prompt,
-            model="claude-sonnet-4-6"
+    async def generate_syllabus(self, topic: str, user_persona: str, subject: str, conclusion_text: str) -> dict:
+        request = SyllabusRequest(
+            topic=f"{topic} (Context: {conclusion_text})",
+            user_persona=user_persona,
+            subject=subject
         )
+        return await self.syllabus_service.generate_syllabus(request)
         
     def check_conclusion(self, llm_response: str) -> str:
         if "<conclude_curation>" in llm_response:

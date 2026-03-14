@@ -27,11 +27,23 @@ class ConversationService:
         """Returns the active LLM repository instance for services that need it directly (e.g. VisualizerService)"""
         return self.llm_repo
 
-    def create_session(self, user_id: str) -> str:
-        return self.persistence_repo.create_session(user_id=user_id)
+    def create_session(self, user_id: str, syllabus_id: str = None) -> str:
+        return self.persistence_repo.create_session(user_id=user_id, syllabus_id=syllabus_id)
+
+    def get_session(self, session_id: str) -> Optional[Dict]:
+        return self.persistence_repo.get_session(session_id)
+
+    def get_syllabus(self, syllabus_id: str) -> Optional[Dict]:
+        return self.persistence_repo.get_syllabus(syllabus_id)
+
+    def get_latest_session(self, user_id: str = None, syllabus_id: str = None) -> Optional[Dict]:
+        return self.persistence_repo.get_latest_session(user_id, syllabus_id)
 
     def stream_response(self, prompt: str):
         return self.llm_repo.stream_response(prompt=prompt)
+
+    async def generate_response(self, prompt: str) -> str:
+        return await self.llm_repo.generate_response(prompt=prompt)
 
     async def update_memory(
         self,
@@ -39,8 +51,9 @@ class ConversationService:
         TURN_COUNTER: int,
         SESSION_MEMORY: str,
         session_id: str = None,
+        force: bool = False
     ) -> Tuple[int, str]:
-        if TURN_COUNTER == 10:
+        if (TURN_COUNTER >= 10 or force) and messages:
             print("[Maestro] Updating session memory...")
             TURN_COUNTER = 0
 
@@ -66,15 +79,17 @@ class ConversationService:
                 try:
                     self.persistence_repo.update_session_memory(session_id, SESSION_MEMORY)
 
-                    evicted_messages = messages[:-5] if len(messages) > 5 else messages[:]
-                    if evicted_messages:
-                        self.persistence_repo.upsert_conversation_history(session_id, evicted_messages)
+                    # On forced update (like close), save everything. 
+                    # Otherwise, save everything except the last 5 we keep in memory.
+                    to_persist = messages[:] if force else (messages[:-5] if len(messages) > 5 else [])
+                    if to_persist:
+                        self.persistence_repo.upsert_conversation_history(session_id, to_persist)
                 except Exception as e:
                     print(f"[Maestro] WARNING – persistence error during update_memory: {e}")
 
             # Keep only the last 5 messages to save context space,
             # as the previous context is now in SESSION_MEMORY
-            messages[:] = messages[-5:]
+            messages[:] = [] if force else messages[-5:]
 
         return TURN_COUNTER, SESSION_MEMORY
 

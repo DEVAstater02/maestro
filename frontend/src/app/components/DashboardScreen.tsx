@@ -15,7 +15,7 @@ interface DashboardScreenProps {
   authToken: string;
   onSignOut: () => void;
   onStartNew: () => void;
-  onResumeSyllabus: (syllabus: any) => void;
+  onResumeSyllabus: (syllabus: any, syllabusId: string) => void;
 }
 
 export default function DashboardScreen({
@@ -99,7 +99,7 @@ export default function DashboardScreen({
               {syllabuses.map((s) => (
                 <button
                   key={s.id}
-                  onClick={() => onResumeSyllabus(s.content_json)}
+                  onClick={() => onResumeSyllabus(s.content_json, s.id)}
                   className="flex flex-col text-left p-5 border border-[var(--color-border)] rounded-2xl bg-[var(--color-surface)] hover:border-[var(--color-text)] hover:shadow-sm transition-all group"
                 >
                   <div className="flex items-center justify-between w-full mb-3">

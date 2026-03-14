@@ -18,26 +18,49 @@ class VisualizerService:
         if not diagram:
             return diagram
 
+        # Remove markdown code blocks if present
+        diagram = diagram.strip()
+        if diagram.startswith('```'):
+            diagram = re.sub(r'^```(mermaid)?\s*\n', '', diagram)
+            diagram = re.sub(r'\n\s*```$', '', diagram)
+
         lines = diagram.split("\n")
+        header = lines[0].lower().strip() if lines else ""
+        is_flowchart = header.startswith("flowchart") or header.startswith("graph")
+        
         sanitized = []
 
         for line in lines:
-            # Fix unquoted labels in square brackets: A[Label Text] -> A["Label Text"]
-            # But skip already-quoted labels: A["Label Text"]
-            line = re.sub(
-                r'\[([^\]"]+)\]',
-                lambda m: f'["{m.group(1)}"]' if not m.group(1).startswith('"') else m.group(0),
-                line
-            )
-            
-            # Fix unquoted labels in arrow labels: -->|label| -> -->|"label"|
-            line = re.sub(
-                r'\|([^"|]+)\|',
-                lambda m: f'|"{m.group(1)}"|',
-                line
-            )
+            trimmed = line.strip()
+            if not trimmed:
+                continue
+                
+            # Remove trailing semicolons which can break some Mermaid versions
+            trimmed = trimmed.rstrip(';')
 
-            sanitized.append(line)
+            if is_flowchart:
+                # 1. Handle double brackets/braces/shapes first (more specific)
+                # {{ label }} -> {{"label"}}
+                trimmed = re.sub(r'\{\{([^\"\}]+)\}\}', r'{{"\1"}}', trimmed)
+                # ([ label ]) -> (["label"])
+                trimmed = re.sub(r'\(\[([^\"\]]+)\]\)', r'(["\1"])', trimmed)
+                # [[ label ]] -> [["label"]]
+                trimmed = re.sub(r'\[\[([^\"\]]+)\]\]', r'[["\1"]]', trimmed)
+                # (( label )) -> (("label"))
+                trimmed = re.sub(r'\(\(([^\" \)]+)\)\)', r'(("\1"))', trimmed)
+                # [( label )] -> [("label")]
+                trimmed = re.sub(r'\[\(([^\" \)]+)\)\]', r'[("\1")]', trimmed)
+
+                # 2. Handle single brackets/parentheses if not already caught
+                # [ label ] -> ["label"]
+                trimmed = re.sub(r'(?<!\[)\[([^\"\]]+)\](?!\])', r'["\1"]', trimmed)
+                # ( label ) -> ("label") - only if attached to a node ID
+                trimmed = re.sub(r'([a-zA-Z0-9_]+)\(([^\" \)]+)\)', r'\1("\2")', trimmed)
+
+                # 3. Handle arrow labels: -->|label| -> -->|"label"|
+                trimmed = re.sub(r'\|([^\"\|]+)\|', r'|"\1"|', trimmed)
+
+            sanitized.append(trimmed)
 
         return "\n".join(sanitized)
 

@@ -37,9 +37,13 @@ app.include_router(curation.router, prefix="/api", tags=["Curation"])
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 
 @app.websocket("/ws/voice")
-async def conversation_ws_handler(websocket: WebSocket, token: Optional[str] = Query(default=None)):
+async def conversation_ws_handler(
+    websocket: WebSocket, 
+    token: Optional[str] = Query(default=None),
+    syllabus_id: Optional[str] = Query(default=None)
+):
     await websocket.accept()
-    print("Client Connected")
+    print("[Maestro] Client Connected")
 
     messages = []
     tts_service = TTSService()
@@ -48,7 +52,7 @@ async def conversation_ws_handler(websocket: WebSocket, token: Optional[str] = Q
     conv_service = ConversationService()
     visualizer_service = VisualizerService(conv_service.get_llm_repo())
 
-    # ── Resolve user_id from JWT token (falls back to anonymous) ─────────────
+    # ── Resolve user_id from JWT token ───────────────────────────────────────
     user_id = None
     if token:
         from app.utils.auth_utils import decode_access_token
@@ -57,15 +61,41 @@ async def conversation_ws_handler(websocket: WebSocket, token: Optional[str] = Q
             user_id = payload.get("sub")
             print(f"[Maestro] Authenticated user: {user_id}")
 
-    # ── Create a new DB session row for this WebSocket connection ────────────
-    try:
-        session_id = conv_service.create_session(user_id=user_id)
-        print(f"[Maestro] DB session started: {session_id}")
-    except Exception as e:
-        print(f"[Maestro] WARNING – could not create DB session: {e}")
-        session_id = None  # continue in-memory only if DB is unavailable
-
+    # ── Initialize State (Memory & Syllabus) ──────────────────────────────────
     SESSION_MEMORY = ""
+    CONVERSATION_SYLLABUS = "No specific syllabus provided."
+    session_id = None
+
+    # ── Resume or Create Session for the given Syllabus ──────────────────────
+    if syllabus_id:
+        # Try to find the existing session for this user/syllabus
+        latest_session = conv_service.get_latest_session(user_id=user_id, syllabus_id=syllabus_id)
+        if latest_session:
+            session_id = latest_session.get("id")
+            SESSION_MEMORY = latest_session.get("session_memory_string") or ""
+            print(f"[Maestro] Resuming session {session_id} for syllabus {syllabus_id}")
+        else:
+            # Create a new session for this syllabus
+            try:
+                session_id = conv_service.create_session(user_id=user_id, syllabus_id=syllabus_id)
+                print(f"[Maestro] Created new session {session_id} for syllabus {syllabus_id}")
+            except Exception as e:
+                print(f"[Maestro] ERROR creating session: {e}")
+        
+        # Load Actual Syllabus Content
+        syllabus_data = conv_service.get_syllabus(syllabus_id)
+        if syllabus_data:
+            CONVERSATION_SYLLABUS = json.dumps(syllabus_data.get("content_json"), indent=2)
+            print(f"[Maestro] Loaded syllabus: {syllabus_data.get('title')}")
+        else:
+            print(f"[Maestro] Warning: Syllabus {syllabus_id} not found.")
+    else:
+        # Fallback for sessions without a syllabus (unlikely in current design)
+        try:
+            session_id = conv_service.create_session(user_id=user_id)
+            print(f"[Maestro] Created anonymous session: {session_id}")
+        except Exception as e:
+            print(f"[Maestro] ERROR creating session: {e}")
     TURN_COUNTER = 0
 
     try:
@@ -102,34 +132,48 @@ async def conversation_ws_handler(websocket: WebSocket, token: Optional[str] = Q
                 "data": transcribed_text
             })
 
-            start_time = time.perf_counter()
-            # 4 - Stream the response from LLM and convert to speech in real-time
-            
-            # Get the streaming text response from LLM
+            # 4 - Stream LLM response
+            llm_start_time = time.perf_counter()
             text_stream = conv_service.stream_response(
                 prompt=TEST_PROMPT.format(
+                    CONVERSATION_SYLLABUS=CONVERSATION_SYLLABUS,
                     SESSION_MEMORY=SESSION_MEMORY,
                     CHAT_HISTORY=conv_service.format_history(messages), 
                     USER_INPUT=transcribed_text
                 )
             )
-            
-            # Collect the full response for conversation history
+
+            # Wrapper to measure LLM TTFT (Time To First Token)
+            async def tracked_text_stream(stream):
+                first_token = False
+                async for chunk in stream:
+                    if not first_token:
+                        print(f"[Maestro] LLM TTFT: {time.perf_counter() - llm_start_time:.4f}s")
+                        first_token = True
+                    yield chunk
+
+            # 5 - Stream TTS audio chunks based on the LLM text stream
             full_response = ""
+            tts_start_time = time.perf_counter()
+            first_audio_chunk = False
             
-            # 5 - Stream TTS audio chunks to the client in real-time
             try:
-                # Stream audio chunks as they're generated from the text stream
-                async for full_text, audio_chunk in tts_service.stream_speech(text_stream, provider="cartesia", speed=float(0.9)):
-                    full_response = full_text
+                # Stream audio chunks based on the provider (Cartesia/ElevenLabs now use sentence-based streaming)
+                async for chunk_text, audio_chunk in tts_service.stream_speech(tracked_text_stream(text_stream), provider="cartesia"):
+                    if not first_audio_chunk:
+                        first_audio_chunk = True
+                        print(f"[Maestro] TTS TTFB (Time to First Byte): {time.perf_counter() - tts_start_time:.4f}s")
+                    
+                    full_response = chunk_text
                     await websocket.send_bytes(audio_chunk)
+                
+                tts_end_time = time.perf_counter()
                 
                 # Update conversation history
                 messages.append({"role": "user", "input": transcribed_text})
                 messages.append({"role": "agent", "input": full_response})
                 
-                end_time = time.perf_counter()
-                print(f"Time taken by streaming LLM + TTS : {(end_time-start_time):.4f} seconds")
+                print(f"[Maestro] Total generation cycle (LLM + TTS): {tts_end_time - llm_start_time:.4f}s")
                 
                 # 6 - Generate and send Visualisation
                 try:
@@ -156,7 +200,21 @@ async def conversation_ws_handler(websocket: WebSocket, token: Optional[str] = Q
                 print(f"Error during streaming audio: {e}")
 
     except Exception as e:
-        print(f"Connection closed : {e}")
+        print(f"[Maestro] Connection closed : {e}")
+    # finally:
+        # ── Final persistent sync on close ──────────────────────────────
+        # if session_id:
+        #     try:
+        #         print(f"[Maestro] Performing final sync for session {session_id}...")
+        #         await conv_service.update_memory(
+        #             messages=messages,
+        #             TURN_COUNTER=TURN_COUNTER,
+        #             SESSION_MEMORY=SESSION_MEMORY,
+        #             session_id=session_id,
+        #             force=True
+        #         )
+        #     except Exception as e:
+        #         print(f"[Maestro] Error during final sync: {e}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

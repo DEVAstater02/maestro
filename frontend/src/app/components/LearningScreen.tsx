@@ -40,17 +40,17 @@ const ArrowUpIcon = () => (
   </svg>
 );
 
-const AlertIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10" />
-    <line x1="12" y1="8" x2="12" y2="12" />
-    <line x1="12" y1="16" x2="12.01" y2="16" />
-  </svg>
-);
-
 import { useTheme } from "next-themes";
 
-export default function LearningScreen({ initialSyllabus }: { initialSyllabus: any }) {
+export default function LearningScreen({ 
+  initialSyllabus, 
+  syllabusId,
+  onHome
+}: { 
+  initialSyllabus: any, 
+  syllabusId?: string,
+  onHome: () => void 
+}) {
   const { theme, resolvedTheme } = useTheme();
   const [status, setStatus] = useState("Ready to connect");
   const [appState, setAppState] = useState<AppState>("idle");
@@ -69,6 +69,7 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
   const responseAudioChunksRef = useRef<ArrayBuffer[]>([]);
   const isReceivingAudioRef = useRef(false);
   const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackChainRef = useRef<Promise<void>>(Promise.resolve());
 
   /* ─── Mermaid init ─── */
   useEffect(() => {
@@ -77,6 +78,7 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
       startOnLoad: false, 
       theme: isDark ? "dark" : "neutral", 
       securityLevel: "loose",
+      suppressErrorRendering: true,
       themeVariables: isDark ? {
         primaryColor: "#ffffff",
         primaryTextColor: "#ffffff",
@@ -199,18 +201,26 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
         audioBuf.getChannelData(0).set(floatData);
       }
 
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuf;
-      source.connect(ctx.destination);
-      source.start(0);
-      setAppState("speaking");
-      setStatus("Speaking");
-      source.onended = () => { setAppState("idle"); setStatus("Ready"); };
+      return new Promise<void>((resolve) => {
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuf;
+        source.connect(ctx.destination);
+        source.start(0);
+        setAppState("speaking");
+        setStatus("Speaking");
+        source.onended = () => { 
+          setAppState("idle"); 
+          setStatus("Ready"); 
+          resolve();
+        };
+      });
     } catch (finalError) {
       console.error("Final audio playback error:", finalError);
       setAppState("idle");
       setStatus("Audio playback error");
+      return Promise.resolve();
     }
+    return Promise.resolve();
   }, []);
 
   /* ─── WebSocket ─── */
@@ -219,7 +229,15 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
     setConnectionStatus("connecting");
     setStatus("Connecting");
 
-    const ws = new WebSocket("ws://localhost:8000/ws/voice");
+    const params = new URLSearchParams();
+    if (syllabusId) params.append("syllabus_id", syllabusId);
+    
+    // Add token if available
+    const token = localStorage.getItem("maestro_token");
+    if (token) params.append("token", token);
+
+    const wsUrl = `ws://localhost:8000/ws/voice?${params.toString()}`;
+    const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
 
     ws.onopen = () => { setConnectionStatus("connected"); setStatus("Ready"); setAppState("idle"); };
@@ -251,14 +269,16 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
 
       responseAudioChunksRef.current.push(event.data as ArrayBuffer);
 
-      const timeout = Math.max(500, responseAudioChunksRef.current.length * 1.5);
+      const timeout = 150;
       if (playbackTimeoutRef.current) clearTimeout(playbackTimeoutRef.current);
       playbackTimeoutRef.current = setTimeout(async () => {
         if (responseAudioChunksRef.current.length > 0 && isReceivingAudioRef.current) {
           isReceivingAudioRef.current = false;
           const chunksToPlay = responseAudioChunksRef.current.slice();
           responseAudioChunksRef.current = [];
-          await playAudio(chunksToPlay);
+          
+          // Sequence playback to avoid overlapping
+          playbackChainRef.current = playbackChainRef.current.then(() => playAudio(chunksToPlay));
         }
       }, timeout);
     };
@@ -319,9 +339,9 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
   const canRecord = connectionStatus === "connected" && !isRecording && !isBusy;
 
   const dotColor =
-    connectionStatus === "connected" ? "bg-[var(--color-text)]" :
-      connectionStatus === "connecting" ? "bg-[var(--color-text-muted)]" :
-        "bg-[var(--color-text-muted)]";
+    connectionStatus === "connected" ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]" :
+      connectionStatus === "connecting" ? "bg-yellow-500 animate-pulse" :
+        "bg-red-500";
 
   const hasCards = cards.length > 0;
   const activeCard = hasCards ? cards[activeIndex] : null;
@@ -333,14 +353,28 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
       {/* ─── Header ─── */}
       <header className="flex items-center justify-between px-6 h-14 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-2.5">
-          <span className="text-base font-semibold tracking-tight">maestro</span>
-          <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">voice tutor</span>
+          <button 
+            onClick={onHome}
+            className="flex items-center gap-2.5 hover:opacity-70 transition-opacity focus:outline-none"
+          >
+            <span className="text-base font-semibold tracking-tight">maestro</span>
+            <span className="text-[11px] text-[var(--color-text-muted)] tracking-wide uppercase">voice tutor</span>
+          </button>
         </div>
         <div className="flex items-center gap-2">
+          {connectionStatus !== "connected" && connectionStatus !== "connecting" && (
+            <button 
+              onClick={connectWS}
+              className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-md hover:border-[var(--color-text)] transition-all mr-1"
+            >
+              Reconnect
+            </button>
+          )}
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
           <span className="text-[11px] text-[var(--color-text-muted)] border-r border-[var(--color-border)] pr-3 mr-1">
             {connectionStatus === "connected" ? "Connected" :
-              connectionStatus === "connecting" ? "Connecting" : "Offline"}
+              connectionStatus === "connecting" ? "Connecting" : 
+              connectionStatus === "error" ? "Error" : "Offline"}
           </span>
           <ThemeToggle />
         </div>
@@ -353,21 +387,7 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
         <div className="flex-1 overflow-hidden relative">
           {activeCard ? (
             <div className="animate-fade-in w-full h-full">
-              {activeCard.failed ? (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="text-center max-w-sm px-6">
-                    <div className="w-10 h-10 rounded-full border border-[var(--color-border)] flex items-center justify-center mx-auto mb-4">
-                      <AlertIcon />
-                    </div>
-                    <p className="text-sm font-medium mb-1">Diagram couldn&apos;t render</p>
-                    <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">
-                      The AI generated a diagram with syntax errors. Try asking again.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <EducationalCard data={activeCard.data} cardId={activeCard.id} />
-              )}
+              <EducationalCard data={activeCard.data} cardId={activeCard.id} />
 
               {/* Jump to latest */}
               {!isLatest && (
@@ -414,7 +434,9 @@ export default function LearningScreen({ initialSyllabus }: { initialSyllabus: a
                 >
                   {c.failed ? (
                     <div className="w-full h-full flex items-center justify-center bg-[var(--color-surface-alt)]">
-                      <AlertIcon />
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--color-text-muted)]">
+                          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        </svg>
                     </div>
                   ) : c.thumbnailSvg ? (
                     <div
