@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.models.user_models import SyllabusRequest
 from app.services.syllabus_service import SyllabusService
-import json
 
 from typing import Optional
 from fastapi import Header, Depends
@@ -40,6 +39,26 @@ async def list_syllabuses(
         raise HTTPException(status_code=401, detail="Token is invalid or expired.")
 
     user_id = payload.get("sub")
-    
+
     syllabuses = service.list_syllabuses(user_id)
     return {"syllabuses": syllabuses}
+
+@router.get("/syllabus/{syllabus_id}")
+async def get_syllabus(
+    syllabus_id: str,
+    authorization: Optional[str] = Header(default=None),
+    service: SyllabusService = Depends(_syllabus_service)
+):
+    """Fetch a single syllabus by ID."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or malformed Authorization header.")
+
+    token = authorization.removeprefix("Bearer ").strip()
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token is invalid or expired.")
+
+    syllabus = service.get_syllabus(syllabus_id)
+    if not syllabus:
+        raise HTTPException(status_code=404, detail="Syllabus not found")
+    return syllabus

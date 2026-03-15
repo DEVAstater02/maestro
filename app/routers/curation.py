@@ -68,7 +68,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
         )
         
         # Stream the first question
-        async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question]), provider="cartesia"):
+        async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question])):
             await websocket.send_bytes(audio_chunk)
             
         await websocket.send_json({"type": "status", "data": "waiting_for_input", "text": current_question})
@@ -86,7 +86,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                 with open(file_name, "wb") as f:
                     f.write(raw_voice_data)
                 
-                transcribed_text = await stt_service.transcribe(file_name, provider="cartesia")
+                transcribed_text = await stt_service.transcribe(file_name)
                 os.remove(file_name) # Clean up
                 
                 await websocket.send_json({"type": "transcription", "data": transcribed_text})
@@ -137,7 +137,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                 else:
                     # Continue curation
                     current_question = llm_response
-                    async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question]), provider="cartesia"):
+                    async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question])):
                         await websocket.send_bytes(audio_chunk)
                     
                     await websocket.send_json({"type": "status", "data": "waiting_for_input", "text": current_question})

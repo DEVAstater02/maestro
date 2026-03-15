@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 from app.repositories import claude, gemini
 from app.repositories.persistence_repo import PersistenceRepository
 from app.prompts.session_memory import SESSION_MEMORY_PROMPT
@@ -40,7 +40,8 @@ class ConversationService:
         return self.persistence_repo.get_latest_session(user_id, syllabus_id)
 
     async def stream_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536):
-        return self.llm_repo.stream_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens)
+        async for chunk in self.llm_repo.stream_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens):
+            yield chunk
 
     async def generate_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536) -> str:
         return await self.llm_repo.generate_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens)
