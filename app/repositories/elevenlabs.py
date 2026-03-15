@@ -27,7 +27,8 @@ class ElevenLabsRepository:
             audio = self.client.text_to_speech.convert(
             voice_id=voice_id,
                 text=text,
-                model_id="eleven_flash_v2_5"
+                model_id="eleven_flash_v2_5",
+                output_format="pcm_24000"
             )
             
             return audio
@@ -80,7 +81,8 @@ class ElevenLabsRepository:
                     audio_stream = self.client.text_to_speech.stream(
                         voice_id=voice_id,
                         text=current_sentence,
-                        model_id="eleven_flash_v2_5"
+                        model_id="eleven_flash_v2_5",
+                        output_format="pcm_24000"
                     )
                     
                     for audio_chunk in audio_stream:
@@ -93,7 +95,8 @@ class ElevenLabsRepository:
                 audio_stream = self.client.text_to_speech.stream(
                     voice_id=voice_id,
                     text=sentence_buffer.strip(),
-                    model_id="eleven_flash_v2_5"
+                    model_id="eleven_flash_v2_5",
+                    output_format="pcm_24000"
                 )
                 for audio_chunk in audio_stream:
                     if isinstance(audio_chunk, bytes):

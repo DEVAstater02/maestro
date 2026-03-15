@@ -122,6 +122,11 @@ async def conversation_ws_handler(
     TURN_COUNTER = 0
 
     try:
+        await websocket.send_json({
+            "type": "audio_format",
+            "data": tts_service.get_stream_audio_format(),
+        })
+
         # ── AI Greeting (speaks first) ───────────────────────────────────────
         try:
             greeting_prompt = GREETING_PROMPT.format(

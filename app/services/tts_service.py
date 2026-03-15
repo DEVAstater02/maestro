@@ -46,6 +46,39 @@ class TTSService:
         else:
             raise ValueError(f"Unsupported TTS provider: {effective}")
 
+    def get_stream_audio_format(self, provider: str = None) -> dict:
+        """Describe the audio format emitted by the active TTS provider."""
+        effective = self._get_effective_provider(provider)
+
+        if effective == "openai":
+            return {
+                "provider": effective,
+                "container": "mp3",
+                "encoding": "mp3",
+                "sample_rate": None,
+                "channels": 1,
+            }
+
+        if effective == "elevenlabs":
+            return {
+                "provider": effective,
+                "container": "raw",
+                "encoding": "pcm_s16le",
+                "sample_rate": 24000,
+                "channels": 1,
+            }
+
+        if effective == "cartesia":
+            return {
+                "provider": effective,
+                "container": "raw",
+                "encoding": "pcm_f32le",
+                "sample_rate": 44100,
+                "channels": 1,
+            }
+
+        raise ValueError(f"Unsupported TTS provider: {effective}")
+
     def generate_speech(self, text: str, provider: str = None, voice_id: str = None, speed: float = 1.0) -> bytes:
         """
         Generate speech from text (batch).
@@ -106,4 +139,3 @@ class TTSService:
                 yield data
         else:
             raise ValueError(f"Unsupported TTS provider: {effective}")
-

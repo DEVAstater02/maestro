@@ -4,6 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AuthScreen from "./components/AuthScreen";
 import VoiceOrb from "./components/VoiceOrb";
+import {
+  decodeAudioForPlayback,
+  type AudioChunk,
+  type PlaybackAudioFormat,
+} from "./lib/audioPlayback";
 
 import DashboardScreen from "./components/DashboardScreen";
 
@@ -36,7 +41,11 @@ export default function App() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserNodeRef = useRef<AnalyserNode | null>(null);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
-  const responseAudioChunksRef = useRef<ArrayBuffer[]>([]);
+  const responseAudioChunksRef = useRef<AudioChunk[]>([]);
+  const pendingRawAudioBytesRef = useRef<Uint8Array<ArrayBufferLike>>(
+    new Uint8Array(0) as Uint8Array<ArrayBufferLike>
+  );
+  const audioFormatRef = useRef<PlaybackAudioFormat | null>(null);
   const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isReceivingAudioRef = useRef(false);
   const playbackChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -96,7 +105,7 @@ export default function App() {
   };
 
   // ── Audio playback ───────────────────────────────────────────────────────
-  const playAudio = async (chunks: ArrayBuffer[]) => {
+  const playAudio = async (chunks: AudioChunk[]) => {
     if (chunks.length === 0) return;
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext();
@@ -112,35 +121,21 @@ export default function App() {
 
     try {
       setIsSpeaking(true);
-      const blob = new Blob(chunks);
-      const arrayBuf = await blob.arrayBuffer();
-      if (arrayBuf.byteLength === 0) {
+      const { audioBuffer, pendingRawBytes } = await decodeAudioForPlayback({
+        audioContext: ctx,
+        chunks,
+        audioFormat: audioFormatRef.current,
+        pendingRawBytes: pendingRawAudioBytesRef.current,
+      });
+      pendingRawAudioBytesRef.current = pendingRawBytes;
+
+      if (!audioBuffer) {
         setIsSpeaking(false);
         return;
       }
 
-      // Clone the buffer because decodeAudioData detaches the original
-      const arrayBufCopy = arrayBuf.slice(0);
-
-      let audioBuf: AudioBuffer;
-      try {
-        // Try decoding as standard containerised audio (MP3, WAV from ElevenLabs)
-        audioBuf = await ctx.decodeAudioData(arrayBuf);
-      } catch (decodeError) {
-        console.warn("Standard audio decoding failed, attempting raw PCM f32le 44.1kHz (Cartesia)...", decodeError);
-
-        const floatData = new Float32Array(arrayBufCopy);
-        if (floatData.length === 0) {
-          setIsSpeaking(false);
-          return;
-        }
-
-        audioBuf = ctx.createBuffer(1, floatData.length, 44100);
-        audioBuf.getChannelData(0).set(floatData);
-      }
-
       const source = ctx.createBufferSource();
-      source.buffer = audioBuf;
+      source.buffer = audioBuffer;
       source.connect(analyserNodeRef.current ?? ctx.destination);
       source.start(0);
       return new Promise<void>(resolve => { 
@@ -162,7 +157,10 @@ export default function App() {
       : "ws://localhost:8000/api/ws/curation";
 
     const ws = new WebSocket(wsUrl);
+    ws.binaryType = "arraybuffer";
     socketRef.current = ws;
+    pendingRawAudioBytesRef.current = new Uint8Array(0) as Uint8Array<ArrayBufferLike>;
+    audioFormatRef.current = null;
 
     ws.onopen = () => {
       ws.send(JSON.stringify({ topic, user_persona: userName || "A student", subject }));
@@ -171,7 +169,9 @@ export default function App() {
     ws.onmessage = async (event) => {
       if (typeof event.data === "string") {
         const msg = JSON.parse(event.data);
-        if (msg.type === "status") {
+        if (msg.type === "audio_format") {
+          audioFormatRef.current = msg.data;
+        } else if (msg.type === "status") {
           setCurationStatus(msg.data);
           setCurationText(msg.text);
           setIsProcessing(false);
@@ -189,7 +189,7 @@ export default function App() {
           isReceivingAudioRef.current = true;
           responseAudioChunksRef.current = [];
         }
-        responseAudioChunksRef.current.push(event.data as ArrayBuffer);
+        responseAudioChunksRef.current.push(event.data as AudioChunk);
 
         if (playbackTimeoutRef.current) clearTimeout(playbackTimeoutRef.current);
         playbackTimeoutRef.current = setTimeout(async () => {
