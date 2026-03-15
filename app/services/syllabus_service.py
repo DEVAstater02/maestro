@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 import json
 import re
 from app.models.user_models import SyllabusRequest
-from app.prompts.syllabus import SYLLABUS_GENERATION_PROMPT
+from app.prompts.syllabus import SYLLABUS_SYSTEM_PROMPT, SYLLABUS_USER_CONTEXT
 from app.repositories.claude import ClaudeRepository
 from app.repositories.persistence_repo import PersistenceRepository
 
@@ -13,14 +13,17 @@ class SyllabusService:
 
     async def generate_syllabus(self, request: SyllabusRequest) -> Dict[str, Any]:
         # Format the prompt with user inputs
-        formatted_prompt = SYLLABUS_GENERATION_PROMPT.replace("{{TOPIC}}", request.topic)
-        formatted_prompt = formatted_prompt.replace("{{USER_PERSONA}}", request.user_persona)
-        formatted_prompt = formatted_prompt.replace("{{SUBJECT}}", request.subject)
+        formatted_user_prompt = SYLLABUS_USER_CONTEXT.format(
+            TOPIC=request.topic,
+            GRADE_LEVEL=request.user_persona, # user_persona often contains grade level info here
+            SUBJECT=request.subject
+        )
         
-        # Call Claude API
+        # Call Claude API with prompt caching
         response_text = await self.claude_repo.generate_response(
-            prompt=formatted_prompt,
-            model="claude-sonnet-4-6" 
+            prompt=formatted_user_prompt,
+            system_prompt=SYLLABUS_SYSTEM_PROMPT,
+            max_tokens=9096
         )
         
         # Attempt to parse the response as JSON to ensure validity

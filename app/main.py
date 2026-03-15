@@ -4,10 +4,11 @@ import json
 import re
 import uvicorn
 from fastapi import FastAPI, WebSocket, Query
+from starlette.websockets import WebSocketDisconnect
 from typing import Optional
 
 from fastapi.middleware.cors import CORSMiddleware
-from app.prompts.prompts import TUTOR_PROMPT, GREETING_PROMPT
+from app.prompts.prompts import TUTOR_PROMPT, TUTOR_CONTEXT, GREETING_PROMPT
 import time
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
@@ -61,12 +62,14 @@ async def conversation_ws_handler(
 
     # ── Resolve user_id from JWT token ───────────────────────────────────────
     user_id = None
+    user_name = "Student"
     if token:
         from app.utils.auth_utils import decode_access_token
         payload = decode_access_token(token)
         if payload:
             user_id = payload.get("sub")
-            print(f"[Maestro] Authenticated user: {user_id}")
+            user_name = payload.get("name", "Student")
+            print(f"[Maestro] Authenticated user: {user_id} ({user_name})")
 
     # ── Initialize State (Memory & Syllabus) ──────────────────────────────────
     SESSION_MEMORY = ""
@@ -138,6 +141,9 @@ async def conversation_ws_handler(
 
             await websocket.send_json({"type": "greeting_complete", "data": greeting_text})
             print("[Maestro] Greeting delivered")
+        except WebSocketDisconnect:
+            print("[Maestro] Client disconnected during greeting")
+            return
         except Exception as e:
             print(f"[Maestro] Greeting failed (non-fatal): {e}")
 
@@ -177,14 +183,16 @@ async def conversation_ws_handler(
             # 4 - Stream LLM response
             llm_start_time = time.perf_counter()
             text_stream = conv_service.stream_response(
-                prompt=TUTOR_PROMPT.format(
-                    SUBJECT=subject,
-                    TOPIC=syllabus_title,
-                    GRADE_LEVEL=grade_level,
+                prompt=TUTOR_CONTEXT.format(
                     CONVERSATION_SYLLABUS=CONVERSATION_SYLLABUS,
                     SESSION_MEMORY=SESSION_MEMORY,
                     CHAT_HISTORY=conv_service.format_history(messages),
                     USER_INPUT=transcribed_text
+                ),
+                system_prompt=TUTOR_PROMPT.format(
+                    SUBJECT=subject,
+                    TOPIC=syllabus_title,
+                    GRADE_LEVEL=grade_level
                 )
             )
 
@@ -245,6 +253,8 @@ async def conversation_ws_handler(
             except Exception as e:
                 print(f"Error during streaming audio: {e}")
 
+    except WebSocketDisconnect:
+        print("[Maestro] Client disconnected")
     except Exception as e:
         print(f"[Maestro] Connection closed : {e}")
 

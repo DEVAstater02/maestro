@@ -1,6 +1,6 @@
 from app.repositories.claude import ClaudeRepository
 from app.repositories.persistence_repo import PersistenceRepository
-from app.prompts.curation import CURATION_PROMPT
+from app.prompts.curation import CURATION_SYSTEM_PROMPT, CURATION_USER_CONTEXT
 from app.services.syllabus_service import SyllabusService
 from app.models.user_models import SyllabusRequest
 import re
@@ -24,13 +24,17 @@ class CurationService:
         return user_profile_str
 
     async def generate_curation_question(self, topic: str, user_profile_str: str, subject: str, curation_history_text: str) -> str:
-        prompt = CURATION_PROMPT.format(
+        formatted_user_prompt = CURATION_USER_CONTEXT.format(
             TOPIC=topic,
             USER_PERSONA=user_profile_str,
             SUBJECT=subject,
             CURATION_HISTORY=curation_history_text
         )
-        return await self.llm_repo.generate_response(prompt=prompt)
+        return await self.llm_repo.generate_response(
+            prompt=formatted_user_prompt, 
+            system_prompt=CURATION_SYSTEM_PROMPT,
+            max_tokens=4048
+        )
 
     async def generate_syllabus(self, topic: str, user_persona: str, subject: str, conclusion_text: str) -> dict:
         request = SyllabusRequest(
