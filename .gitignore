@@ -5,4 +5,4 @@ node_modules/
 *.wav
 *.pyc
 /[0-9]*
-
+venv/
