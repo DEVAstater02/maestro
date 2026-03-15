@@ -36,7 +36,7 @@ class TTSService:
         """
         provider = self._get_effective_provider(provider)
         if provider == "openai":
-            return self.openai_repo.generate_speech(text, voice_id=voice_id or "coral")
+            return self.openai_repo.generate_speech(text, voice_id=voice_id or "marin")
         elif provider == "elevenlabs":
             return self.elevenlabs_repo.generate_speech(text, voice_id=voice_id or "21m00Tcm4TlvDq8ikWAM")
         elif provider == "cartesia":
@@ -61,7 +61,7 @@ class TTSService:
         if provider == "openai":
             async for data in self.openai_repo.stream_speech_from_text_stream(
                 text_stream,
-                voice_id=voice_id or "coral"
+                voice_id=voice_id or "marin"
             ):
                 yield data
         elif provider == "elevenlabs":

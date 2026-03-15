@@ -1,6 +1,8 @@
 import os
 from openai import OpenAI, AsyncOpenAI
 
+VOICE_INSTRUCTIONS = "Speak clearly and project your voice with strong volume. Use a confident, engaging tone."
+
 
 class OpenAIRepository:
     def __init__(self):
@@ -10,13 +12,13 @@ class OpenAIRepository:
         self.client = OpenAI(api_key=self.api_key)
         self.async_client = AsyncOpenAI(api_key=self.api_key)
 
-    def generate_speech(self, text: str, voice_id: str = "coral") -> bytes:
+    def generate_speech(self, text: str, voice_id: str = "marin") -> bytes:
         """
         Generate speech from text using OpenAI TTS (batch).
 
         Args:
             text (str): The text to convert to speech.
-            voice_id (str): The voice to use (default: coral).
+            voice_id (str): The voice to use (default: marin).
 
         Returns:
             bytes: Audio data in mp3 format.
@@ -29,6 +31,7 @@ class OpenAIRepository:
                 model="gpt-4o-mini-tts",
                 voice=voice_id,
                 input=text,
+                instructions=VOICE_INSTRUCTIONS,
                 response_format="mp3",
             )
             return response.content
@@ -36,7 +39,7 @@ class OpenAIRepository:
             print(f"OpenAI TTS Error: {e}")
             raise
 
-    async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "coral"):
+    async def stream_speech_from_text_stream(self, text_stream, voice_id: str = "marin"):
         """
         Generate speech from a streaming text source using OpenAI TTS streaming API.
         Buffers text until sentence boundaries, then streams audio chunks per sentence
@@ -62,28 +65,28 @@ class OpenAIRepository:
                     sentence_buffer = ""
 
                     print(f"[OpenAI TTS] Streaming sentence: {current_sentence[:50]}...")
-                    async with self.async_client.audio.speech.with_streaming_response.create(
+                    response = await self.async_client.audio.speech.create(
                         model="gpt-4o-mini-tts",
                         voice=voice_id,
                         input=current_sentence,
-                        response_format="pcm",
-                    ) as response:
-                        async for chunk in response.aiter_bytes(chunk_size=1024):
-                            if chunk:
-                                yield (full_text, chunk)
+                        instructions=VOICE_INSTRUCTIONS,
+                        response_format="mp3",
+                    )
+                    if response.content:
+                        yield (full_text, response.content)
 
             # Handle any remaining text in the buffer
             if sentence_buffer.strip():
                 print(f"[OpenAI TTS] Streaming final sentence: {sentence_buffer[:50]}...")
-                async with self.async_client.audio.speech.with_streaming_response.create(
+                response = await self.async_client.audio.speech.create(
                     model="gpt-4o-mini-tts",
                     voice=voice_id,
                     input=sentence_buffer.strip(),
-                    response_format="pcm",
-                ) as response:
-                    async for chunk in response.aiter_bytes(chunk_size=1024):
-                        if chunk:
-                            yield (full_text, chunk)
+                    instructions=VOICE_INSTRUCTIONS,
+                    response_format="mp3",
+                )
+                if response.content:
+                    yield (full_text, response.content)
 
         except Exception as e:
             print(f"OpenAI TTS Error during streaming: {e}")
