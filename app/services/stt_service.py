@@ -8,7 +8,7 @@ class STTService:
         self.elevenlabs_repo = ElevenLabsRepository()
         self.cartesia_repo = CartesiaRepository()
         self.assemblyai_repo = AssemblyAI()
-        self.default_provider = os.getenv("STT_PROVIDER", "elevenlabs").lower()
+        self.default_provider = os.getenv("STT_PROVIDER", "cartesia").lower()
 
     async def transcribe(self, audio_file_path: str, provider: str = None) -> str:
         """
