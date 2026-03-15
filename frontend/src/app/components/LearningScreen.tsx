@@ -240,7 +240,11 @@ export default function LearningScreen({
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
 
-    ws.onopen = () => { setConnectionStatus("connected"); setStatus("Ready"); setAppState("idle"); };
+    ws.onopen = () => { 
+      setConnectionStatus("connected"); 
+      setStatus("Joining..."); 
+      setAppState("receiving"); 
+    };
     ws.onerror = () => { setConnectionStatus("error"); setStatus("Connection failed"); };
     ws.onclose = () => { setConnectionStatus("disconnected"); setStatus("Disconnected"); setAppState("idle"); };
 

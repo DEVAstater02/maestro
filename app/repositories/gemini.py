@@ -12,7 +12,7 @@ class GeminiRepository:
             raise ValueError("GEMINI_API_KEY environment variable not set.")
         self.client = genai.Client(api_key=self.api_key)
 
-    async def generate_response(self, prompt: str, model: str = "gemini-flash-latest") -> str:
+    async def generate_response(self, prompt: str, model: str = "gemini-flash-latest", max_tokens: int = 1536) -> str:
         """
         Generates a response from the Gemini LLM API for a given prompt.
         """
@@ -24,7 +24,7 @@ class GeminiRepository:
                 model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    max_output_tokens=1024,
+                    max_output_tokens=max_tokens,
                 ),
             )
             return response.text
@@ -71,7 +71,7 @@ class GeminiRepository:
             print(f"Gemini Structured Output Error: {e}")
             return None
 
-    async def stream_response(self, prompt: str, model: str = "gemini-flash-latest"):
+    async def stream_response(self, prompt: str, model: str = "gemini-flash-latest", max_tokens: int = 1536):
         """
         Streams the response from the Gemini LLM API for a given prompt.
 
@@ -93,7 +93,7 @@ class GeminiRepository:
                 model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    max_output_tokens=1024,
+                    max_output_tokens=max_tokens,
                 ),
             ):
                 if chunk.text:

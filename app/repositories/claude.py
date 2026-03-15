@@ -9,7 +9,13 @@ class ClaudeRepository:
         self.client = AsyncAnthropic(api_key=self.api_key)
         self.streaming_client = Anthropic(api_key=self.api_key)
 
-    async def generate_response(self, prompt: str, model: str = "claude-haiku-4-5-20251001") -> str:
+    async def generate_response(
+        self, 
+        prompt: str, 
+        system_prompt: str = None, 
+        model: str = "claude-haiku-4-5", 
+        max_tokens: int = 1536
+    ) -> str:
         """
         Generates a response from the Claude LLM API for a given prompt.
 
@@ -28,14 +34,32 @@ class ClaudeRepository:
             raise ValueError("Prompt cannot be empty.")
 
         try:
-            message = await self.client.messages.create(
-                model=model,
-                max_tokens=9096,
-                # TODO : use system variable with prompt caching for system_prompt
-                messages=[
-                    {"role": "user", "content": prompt}
+            params = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            
+            if system_prompt:
+                params["system"] = [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"}
+                    }
                 ]
-            )
+                params["extra_headers"] = {"anthropic-beta": "prompt-caching-2024-07-31"}
+            
+            message = await self.client.messages.create(**params)
+            
+            # Log caching stats if available
+            usage = getattr(message, "usage", None)
+            if usage:
+                cache_read = getattr(usage, "cache_read_input_tokens", 0)
+                cache_created = getattr(usage, "cache_creation_input_tokens", 0)
+                if cache_read > 0 or cache_created > 0:
+                    print(f"[Claude Caching] Read: {cache_read}, Created: {cache_created}")
+
             return message.content[0].text
         except APIError as e:
             print(f"Anthropic API Error: {e}")
@@ -44,7 +68,13 @@ class ClaudeRepository:
             print(f"An unexpected error occurred: {e}")
             raise
 
-    async def stream_response(self, prompt: str, model: str = "claude-haiku-4-5-20251001"):
+    async def stream_response(
+        self, 
+        prompt: str, 
+        system_prompt: str = None, 
+        model: str = "claude-haiku-4-5", 
+        max_tokens: int = 1536
+    ):
         """
         Streams the response from the Claude LLM API for a given prompt.
 
@@ -63,15 +93,38 @@ class ClaudeRepository:
             raise ValueError("Prompt cannot be empty.")
 
         try:
-            async with self.client.messages.stream(
-                model=model,
-                max_tokens=1024,
-                messages=[
-                    {"role": "user", "content": prompt}
+            params = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            
+            if system_prompt:
+                params["system"] = [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"}
+                    }
                 ]
-            ) as stream:
+                params["extra_headers"] = {"anthropic-beta": "prompt-caching-2024-07-31"}
+            
+            # Use the streaming client/method
+            async with self.client.messages.stream(**params) as stream:
                 async for text in stream.text_stream:
                     yield text
+                
+                # Log caching stats after stream finishes
+                try:
+                    final_msg = await stream.get_final_message()
+                    usage = getattr(final_msg, "usage", None)
+                    if usage:
+                        cache_read = getattr(usage, "cache_read_input_tokens", 0)
+                        cache_created = getattr(usage, "cache_creation_input_tokens", 0)
+                        if cache_read > 0 or cache_created > 0:
+                            print(f"[Claude Caching] Read: {cache_read}, Created: {cache_created}")
+                except:
+                    pass
         except APIError as e:
             print(f"Anthropic API Error: {e}")
             raise

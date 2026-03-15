@@ -39,11 +39,11 @@ class ConversationService:
     def get_latest_session(self, user_id: str = None, syllabus_id: str = None) -> Optional[Dict]:
         return self.persistence_repo.get_latest_session(user_id, syllabus_id)
 
-    def stream_response(self, prompt: str):
-        return self.llm_repo.stream_response(prompt=prompt)
+    async def stream_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536):
+        return self.llm_repo.stream_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens)
 
-    async def generate_response(self, prompt: str) -> str:
-        return await self.llm_repo.generate_response(prompt=prompt)
+    async def generate_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536) -> str:
+        return await self.llm_repo.generate_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens)
 
     async def update_memory(
         self,

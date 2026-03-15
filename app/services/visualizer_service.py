@@ -1,6 +1,6 @@
 import json
 import re
-from app.prompts.visualiser import VISUALISER_PROMPT
+from app.prompts.visualiser import VISUALISER_SYSTEM_PROMPT, VISUALISER_USER_CONTEXT
 
 class VisualizerService:
     def __init__(self, llm_repo):
@@ -54,11 +54,17 @@ class VisualizerService:
                 # 2. Handle single brackets/parentheses if not already caught
                 # [ label ] -> ["label"]
                 trimmed = re.sub(r'(?<!\[)\[([^\"\]]+)\](?!\])', r'["\1"]', trimmed)
+                # { label } -> {"label"}
+                trimmed = re.sub(r'(?<!\{)\{([^\"\}]+)\}(?!\})', r'{"\1"}', trimmed)
                 # ( label ) -> ("label") - only if attached to a node ID
                 trimmed = re.sub(r'([a-zA-Z0-9_]+)\(([^\" \)]+)\)', r'\1("\2")', trimmed)
 
                 # 3. Handle arrow labels: -->|label| -> -->|"label"|
                 trimmed = re.sub(r'\|([^\"\|]+)\|', r'|"\1"|', trimmed)
+                
+                # 4. Cleanup hallucinated trailing characters and mismatched brackets after node definitions
+                # (e.g. B{"label"}]B -> B{"label"})
+                trimmed = re.sub(r'([a-zA-Z0-9_]+)(\[.*?\]|\{.*?\}|\(.*?\))[\]\}\)]*[a-zA-Z0-9_]*', r'\1\2', trimmed)
 
             sanitized.append(trimmed)
 
@@ -81,7 +87,7 @@ class VisualizerService:
         """
         try:
             print("[Visualizer] Generating visualisation...")
-            visualiser_to_llm = VISUALISER_PROMPT.format(
+            visualiser_user_prompt = VISUALISER_USER_CONTEXT.format(
                 USER_INPUT=user_input,
                 TUTOR_RESPONSE=tutor_response
             )
@@ -92,7 +98,7 @@ class VisualizerService:
             if hasattr(self.llm_repo, 'generate_structured_response'):
                 from app.models.user_models import VisualisationResponse
                 result = await self.llm_repo.generate_structured_response(
-                    prompt=visualiser_to_llm,
+                    prompt=visualiser_user_prompt,
                     response_schema=VisualisationResponse,
                 )
                 if result:
@@ -100,7 +106,11 @@ class VisualizerService:
                     print(f"[Visualizer] Structured output from Gemini: {vis_data.get('title', 'N/A')}")
             else:
                 # Fallback for Claude: parse raw text as JSON
-                raw_visualisation = await self.llm_repo.generate_response(visualiser_to_llm)
+                # Use system prompt for instructions and user prompt for context
+                raw_visualisation = await self.llm_repo.generate_response(
+                    prompt=visualiser_user_prompt,
+                    system_prompt=VISUALISER_SYSTEM_PROMPT
+                )
                 print(f"[Visualizer] Raw output received (len: {len(raw_visualisation)})")
                 
                 if raw_visualisation and raw_visualisation.strip():

@@ -7,7 +7,7 @@ from fastapi import FastAPI, WebSocket, Query
 from typing import Optional
 
 from fastapi.middleware.cors import CORSMiddleware
-from app.prompts.prompts import TEST_PROMPT
+from app.prompts.prompts import SYSTEM_PROMPT, TUTOR_CONTEXT, WELCOME_PROMPT
 import time
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
@@ -36,6 +36,11 @@ app.include_router(syllabus.router, prefix="/api", tags=["Syllabus"])
 app.include_router(curation.router, prefix="/api", tags=["Curation"])
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 
+async def to_async_iterator(iterator):
+    """Helper to convert sync iterator to async iterator."""
+    for item in iterator:
+        yield item
+
 @app.websocket("/ws/voice")
 async def conversation_ws_handler(
     websocket: WebSocket, 
@@ -54,12 +59,14 @@ async def conversation_ws_handler(
 
     # ── Resolve user_id from JWT token ───────────────────────────────────────
     user_id = None
+    user_name = "Student"
     if token:
         from app.utils.auth_utils import decode_access_token
         payload = decode_access_token(token)
         if payload:
             user_id = payload.get("sub")
-            print(f"[Maestro] Authenticated user: {user_id}")
+            user_name = payload.get("name", "Student")
+            print(f"[Maestro] Authenticated user: {user_id} ({user_name})")
 
     # ── Initialize State (Memory & Syllabus) ──────────────────────────────────
     SESSION_MEMORY = ""
@@ -97,6 +104,22 @@ async def conversation_ws_handler(
         except Exception as e:
             print(f"[Maestro] ERROR creating session: {e}")
     TURN_COUNTER = 0
+    
+    # ── Initial Greeting ──────────────────────────────────────────────────────
+    try:
+        greeting_msg = f"Hello {user_name}, welcome back to learning! Let's continue from where we left off."
+        if not SESSION_MEMORY:
+            greeting_msg = f"Hello {user_name}, I am Maestro, your personal AI tutor. I've prepared a syllabus for you. Let's get started!"
+        
+        print(f"[Maestro] Sending initial greeting: {greeting_msg}")
+        
+        # Stream the hardcoded message to TTS
+        async for chunk_text, audio_chunk in tts_service.stream_speech(to_async_iterator([greeting_msg]), provider="cartesia"):
+            await websocket.send_bytes(audio_chunk)
+            
+        messages.append({"role": "agent", "input": greeting_msg})
+    except Exception as e:
+        print(f"[Maestro] Error during initial greeting: {e}")
 
     try:
         while True:
@@ -134,13 +157,14 @@ async def conversation_ws_handler(
 
             # 4 - Stream LLM response
             llm_start_time = time.perf_counter()
-            text_stream = conv_service.stream_response(
-                prompt=TEST_PROMPT.format(
+            text_stream = await conv_service.stream_response(
+                prompt=TUTOR_CONTEXT.format(
                     CONVERSATION_SYLLABUS=CONVERSATION_SYLLABUS,
                     SESSION_MEMORY=SESSION_MEMORY,
                     CHAT_HISTORY=conv_service.format_history(messages), 
                     USER_INPUT=transcribed_text
-                )
+                ),
+                system_prompt=SYSTEM_PROMPT
             )
 
             # Wrapper to measure LLM TTFT (Time To First Token)
