@@ -1,15 +1,24 @@
-from app.repositories.elevenlabs import ElevenLabsRepository
-from app.repositories.cartesia import CartesiaRepository
-from app.repositories.openai_repo import OpenAIRepository
 import os
 
 class TTSService:
     def __init__(self):
-        self.elevenlabs_repo = ElevenLabsRepository()
-        self.cartesia_repo = CartesiaRepository()
-        self.openai_repo = OpenAIRepository()
         self.default_provider = os.getenv("TTS_PROVIDER", "openai").lower()
         self.cartesia_api_key = os.getenv("CARTESIA_API_KEY", "")
+        print(f"[TTSService] Using TTS provider: {self.default_provider}")
+
+        # Only instantiate the configured provider
+        effective = self._get_effective_provider(self.default_provider)
+        if effective == "elevenlabs":
+            from app.repositories.elevenlabs import ElevenLabsRepository
+            self._repo = ElevenLabsRepository()
+        elif effective == "cartesia":
+            from app.repositories.cartesia import CartesiaRepository
+            self._repo = CartesiaRepository()
+        elif effective == "openai":
+            from app.repositories.openai_repo import OpenAIRepository
+            self._repo = OpenAIRepository()
+        else:
+            raise ValueError(f"Unsupported TTS provider: {effective}")
 
     def _get_effective_provider(self, provider: str) -> str:
         """Determines the provider to use, with fallback logic."""
@@ -20,6 +29,22 @@ class TTSService:
                 print("[TTSService] WARNING: Cartesia selected but API key is missing or invalid. Falling back to OpenAI.")
                 return "openai"
         return p
+
+    def _get_repo(self, provider: str):
+        """Get or create a repo for the given provider."""
+        effective = self._get_effective_provider(provider)
+        # Check if the cached repo matches the requested provider
+        if effective == "elevenlabs":
+            from app.repositories.elevenlabs import ElevenLabsRepository
+            return self._repo if isinstance(self._repo, ElevenLabsRepository) else ElevenLabsRepository()
+        elif effective == "cartesia":
+            from app.repositories.cartesia import CartesiaRepository
+            return self._repo if isinstance(self._repo, CartesiaRepository) else CartesiaRepository()
+        elif effective == "openai":
+            from app.repositories.openai_repo import OpenAIRepository
+            return self._repo if isinstance(self._repo, OpenAIRepository) else OpenAIRepository()
+        else:
+            raise ValueError(f"Unsupported TTS provider: {effective}")
 
     def generate_speech(self, text: str, provider: str = None, voice_id: str = None, speed: float = 1.0) -> bytes:
         """
@@ -34,17 +59,18 @@ class TTSService:
         Returns:
             bytes: Audio data.
         """
-        provider = self._get_effective_provider(provider)
-        if provider == "openai":
-            return self.openai_repo.generate_speech(text, voice_id=voice_id or "marin")
-        elif provider == "elevenlabs":
-            return self.elevenlabs_repo.generate_speech(text, voice_id=voice_id or "21m00Tcm4TlvDq8ikWAM")
-        elif provider == "cartesia":
-            return self.cartesia_repo.text_to_speech(text, voice_id=voice_id or "a0e99829-1bb2-4353-9d43-352c75535515", speed=speed)
+        effective = self._get_effective_provider(provider)
+        repo = self._get_repo(effective)
+        if effective == "openai":
+            return repo.generate_speech(text, voice_id=voice_id or "marin")
+        elif effective == "elevenlabs":
+            return repo.generate_speech(text, voice_id=voice_id or "21m00Tcm4TlvDq8ikWAM")
+        elif effective == "cartesia":
+            return repo.text_to_speech(text, voice_id=voice_id or "a0e99829-1bb2-4353-9d43-352c75535515", speed=speed)
         else:
-            raise ValueError(f"Unsupported TTS provider: {provider}")
+            raise ValueError(f"Unsupported TTS provider: {effective}")
 
-    async def stream_speech(self, text_stream, provider: str = "openai", voice_id: str = None, speed: float = 1.0):
+    async def stream_speech(self, text_stream, provider: str = None, voice_id: str = None, speed: float = 1.0):
         """
         Stream speech from a text stream (async generator).
 
@@ -57,25 +83,27 @@ class TTSService:
         Yields:
             tuple: (full_text, audio_chunk)
         """
-        provider = self._get_effective_provider(provider)
-        if provider == "openai":
-            async for data in self.openai_repo.stream_speech_from_text_stream(
+        effective = self._get_effective_provider(provider)
+        repo = self._get_repo(effective)
+        if effective == "openai":
+            async for data in repo.stream_speech_from_text_stream(
                 text_stream,
                 voice_id=voice_id or "marin"
             ):
                 yield data
-        elif provider == "elevenlabs":
-            async for data in self.elevenlabs_repo.stream_speech_from_text_stream(
+        elif effective == "elevenlabs":
+            async for data in repo.stream_speech_from_text_stream(
                 text_stream,
                 voice_id=voice_id or "EXAVITQu4vr4xnSDxMaL"
             ):
                 yield data
-        elif provider == "cartesia":
-            async for data in self.cartesia_repo.stream_speech_from_text_stream(
+        elif effective == "cartesia":
+            async for data in repo.stream_speech_from_text_stream(
                 text_stream,
                 voice_id=voice_id or "a33f7a4c-100f-41cf-a1fd-5822e8fc253f",
                 speed=speed
             ):
                 yield data
         else:
-            raise ValueError(f"Unsupported TTS provider: {provider}")
+            raise ValueError(f"Unsupported TTS provider: {effective}")
+

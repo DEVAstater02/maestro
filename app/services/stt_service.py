@@ -1,18 +1,26 @@
-from app.repositories.elevenlabs import ElevenLabsRepository
-from app.repositories.cartesia import CartesiaRepository
-from app.repositories.assemblyai_repo import AssemblyAI
 import os
 
 class STTService:
     def __init__(self):
-        self.elevenlabs_repo = ElevenLabsRepository()
-        self.cartesia_repo = CartesiaRepository()
-        self.assemblyai_repo = AssemblyAI()
         self.default_provider = os.getenv("STT_PROVIDER", "cartesia").lower()
+        print(f"[STTService] Using STT provider: {self.default_provider}")
+
+        # Only instantiate the configured provider
+        if self.default_provider == "elevenlabs":
+            from app.repositories.elevenlabs import ElevenLabsRepository
+            self._repo = ElevenLabsRepository()
+        elif self.default_provider == "cartesia":
+            from app.repositories.cartesia import CartesiaRepository
+            self._repo = CartesiaRepository()
+        elif self.default_provider == "assemblyai":
+            from app.repositories.assemblyai_repo import AssemblyAI
+            self._repo = AssemblyAI()
+        else:
+            raise ValueError(f"Unsupported STT provider: {self.default_provider}")
 
     async def transcribe(self, audio_file_path: str, provider: str = None) -> str:
         """
-        Transcribe audio using the specified provider.
+        Transcribe audio using the configured provider.
         
         Args:
             audio_file_path (str): Path to the audio file.
@@ -27,11 +35,16 @@ class STTService:
         provider = (provider or self.default_provider).lower()
         
         if provider == "elevenlabs":
-            return self.elevenlabs_repo.transcribe_audio(audio_file_path)
+            from app.repositories.elevenlabs import ElevenLabsRepository
+            repo = self._repo if isinstance(self._repo, ElevenLabsRepository) else ElevenLabsRepository()
+            return repo.transcribe_audio(audio_file_path)
         elif provider == "cartesia":
-            return self.cartesia_repo.speech_to_text(audio_file_path)
+            from app.repositories.cartesia import CartesiaRepository
+            repo = self._repo if isinstance(self._repo, CartesiaRepository) else CartesiaRepository()
+            return repo.speech_to_text(audio_file_path)
         elif provider == "assemblyai":
-            # Note: AssemblyAI repo has transcribe_audio_file which is async
-            return await self.assemblyai_repo.transcribe_audio_file(audio_file_path)
+            from app.repositories.assemblyai_repo import AssemblyAI
+            repo = self._repo if isinstance(self._repo, AssemblyAI) else AssemblyAI()
+            return await repo.transcribe_audio_file(audio_file_path)
         else:
             raise ValueError(f"Unsupported STT provider: {provider}")
