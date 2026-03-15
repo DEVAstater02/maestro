@@ -12,17 +12,20 @@ class GeminiRepository:
             raise ValueError("GEMINI_API_KEY environment variable not set.")
         self.client = genai.Client(api_key=self.api_key)
 
-    async def generate_response(self, prompt: str, model: str = "gemini-flash-latest", max_tokens: int = 1536) -> str:
+    async def generate_response(self, prompt: str, system_prompt: str = None, model: str = "gemini-flash-latest", max_tokens: int = 1536) -> str:
         """
         Generates a response from the Gemini LLM API for a given prompt.
         """
         if not prompt:
             raise ValueError("Prompt cannot be empty.")
 
+        # Gemini: prepend system prompt to user prompt if provided
+        effective_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+
         try:
             response = await self.client.aio.models.generate_content(
                 model=model,
-                contents=prompt,
+                contents=effective_prompt,
                 config=types.GenerateContentConfig(
                     max_output_tokens=max_tokens,
                 ),
@@ -71,12 +74,13 @@ class GeminiRepository:
             print(f"Gemini Structured Output Error: {e}")
             return None
 
-    async def stream_response(self, prompt: str, model: str = "gemini-flash-latest", max_tokens: int = 1536):
+    async def stream_response(self, prompt: str, system_prompt: str = None, model: str = "gemini-flash-latest", max_tokens: int = 1536):
         """
         Streams the response from the Gemini LLM API for a given prompt.
 
         Args:
             prompt (str): The input prompt for the LLM.
+            system_prompt (str): Optional system prompt to prepend.
             model (str): The Gemini model to use.
 
         Yields:
@@ -88,10 +92,13 @@ class GeminiRepository:
         if not prompt:
             raise ValueError("Prompt cannot be empty.")
 
+        # Gemini: prepend system prompt to user prompt if provided
+        effective_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+
         try:
             async for chunk in await self.client.aio.models.generate_content_stream(
                 model=model,
-                contents=prompt,
+                contents=effective_prompt,
                 config=types.GenerateContentConfig(
                     max_output_tokens=max_tokens,
                 ),

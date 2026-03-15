@@ -1,14 +1,27 @@
+import os
 from typing import List, Dict, Any, Optional
 import json
 import re
 from app.models.user_models import SyllabusRequest
 from app.prompts.syllabus import SYLLABUS_SYSTEM_PROMPT, SYLLABUS_USER_CONTEXT
-from app.repositories.claude import ClaudeRepository
 from app.repositories.persistence_repo import PersistenceRepository
 
 class SyllabusService:
     def __init__(self):
-        self.claude_repo = ClaudeRepository()
+        LLM_PROVIDER = os.getenv("LLM_PROVIDER", "claude").lower()
+        print(f"[SyllabusService] Using LLM provider: {LLM_PROVIDER}")
+
+        if LLM_PROVIDER == "gemini":
+            from app.repositories.gemini import GeminiRepository
+            self.llm_repo = GeminiRepository()
+        elif LLM_PROVIDER == "claude":
+            from app.repositories.claude import ClaudeRepository
+            self.llm_repo = ClaudeRepository()
+        else:
+            raise ValueError(
+                f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
+                "Supported values: 'claude', 'gemini'"
+            )
         self.persistence_repo = PersistenceRepository()
 
     async def generate_syllabus(self, request: SyllabusRequest) -> Dict[str, Any]:
@@ -19,8 +32,8 @@ class SyllabusService:
             SUBJECT=request.subject
         )
         
-        # Call Claude API with prompt caching
-        response_text = await self.claude_repo.generate_response(
+        # Call LLM API
+        response_text = await self.llm_repo.generate_response(
             prompt=formatted_user_prompt,
             system_prompt=SYLLABUS_SYSTEM_PROMPT,
             max_tokens=9096
