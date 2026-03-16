@@ -23,6 +23,10 @@ Your task is to create an updated session memory that:
 - Notes any topics that need review or follow-up in future sessions
 - Keeps track of teaching strategies that worked well or didn't work
 - Retains important details rather than over-summarizing - the memory should be detailed enough that another AI agent could seamlessly continue the teaching session
+- Tracks the student's preferred learning style: do they respond better to analogies, worked examples, direct explanation, or challenges?
+- Records emotional markers: moments of frustration, excitement, or breakthroughs in understanding
+- Notes the student's own vocabulary and terminology preferences, so the tutor can mirror their language
+- Captures specific achievements and strengths to reference when the student returns
 
 Before writing the updated memory, use the scratchpad to identify key information from the conversation that should be incorporated.
 
@@ -36,6 +40,10 @@ Think through:
 - What is the student's current state of understanding?
 - What should be covered or reviewed in the next session?
 - Are there any notable patterns in how the student learns best?
+- Did the student respond better to analogies, examples, challenges, or direct explanation?
+- Were there moments of frustration, excitement, or breakthrough?
+- What terminology or vocabulary does the student use naturally?
+- What specific achievements should be highlighted when the student returns?
 </scratchpad>
 
 Write your updated session memory inside <updated_session_memory> tags. The updated memory should be comprehensive and detailed, incorporating both the previous session memory and the new conversation messages. It should read as a cohesive narrative of the student's learning journey that captures the nuances and specifics of what has been taught and learned.

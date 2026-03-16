@@ -128,7 +128,8 @@ async def conversation_ws_handler(
                 SUBJECT=subject,
                 TOPIC=syllabus_title,
                 GRADE_LEVEL=grade_level,
-                CONVERSATION_SYLLABUS=CONVERSATION_SYLLABUS
+                CONVERSATION_SYLLABUS=CONVERSATION_SYLLABUS,
+                SESSION_MEMORY=SESSION_MEMORY or "No previous sessions"
             )
             greeting_text = await conv_service.generate_response(greeting_prompt)
             print(f"[Maestro] Greeting: {greeting_text[:80]}...")
