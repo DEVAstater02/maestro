@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import mermaid from "mermaid";
-import EducationalCard, { type StructuredVis } from "./EducationalCard";
+import VisualRenderer, { type VisualEntry, type VisType } from "./VisualRenderer";
+import { type StructuredVis } from "./EducationalCard";
 import { ThemeToggle } from "./ThemeToggle";
 import VoiceOrb from "./VoiceOrb";
 import {
@@ -23,9 +24,9 @@ type VisualMode = "orb" | "viz";
 interface CardEntry {
   id: string;
   label: string;
-  format: "structured" | "mermaid";
-  data: StructuredVis;
-  failed?: boolean;
+  vis_type: VisType;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
 }
 
 export default function LearningScreen({
@@ -99,15 +100,17 @@ export default function LearningScreen({
 
   /* ─── Handle incoming visualisation ─── */
   const handleVisualisation = useCallback(
-    async (msg: { type: string; format?: string; data: unknown }) => {
-      const label = truncateLabel(lastTranscriptionRef.current || "Diagram");
+    async (msg: { type: string; vis_type?: string; format?: string; data: unknown }) => {
+      const label = truncateLabel(lastTranscriptionRef.current || "Visual");
 
-      if (msg.format === "structured" && typeof msg.data === "object" && msg.data !== null) {
-        const visData = msg.data as StructuredVis;
+      // New dynamic vis_type system
+      if (msg.vis_type && typeof msg.data === "object" && msg.data !== null) {
+        const visType = msg.vis_type as VisType;
+        const visData = msg.data as Record<string, unknown>;
         const entry: CardEntry = {
-          id: `card-${Date.now()}`,
-          label: visData.title || label,
-          format: "structured",
+          id: `vis-${Date.now()}`,
+          label: (visData.title as string) || (visData.label as string) || label,
+          vis_type: visType,
           data: visData,
         };
         setCards((prev) => {
@@ -116,21 +119,17 @@ export default function LearningScreen({
           return next;
         });
         setVisualMode("viz");
-      } else if (typeof msg.data === "string") {
-        const mermaidCode = msg.data;
-        let failed = false;
-        try {
-          const id = `mermaid-check-${Date.now()}`;
-          await mermaid.render(id, mermaidCode);
-        } catch {
-          failed = true;
-        }
+        return;
+      }
+
+      // Legacy fallback: old structured format
+      if (msg.format === "structured" && typeof msg.data === "object" && msg.data !== null) {
+        const visData = msg.data as StructuredVis;
         const entry: CardEntry = {
-          id: `mermaid-${Date.now()}`,
-          label,
-          format: "mermaid",
-          data: { title: label, diagram: mermaidCode },
-          failed,
+          id: `card-${Date.now()}`,
+          label: visData.title || label,
+          vis_type: "legacy",
+          data: visData,
         };
         setCards((prev) => {
           const next = [...prev, entry];
@@ -474,7 +473,14 @@ export default function LearningScreen({
               className="w-full h-full pb-20"
             >
               {activeCard && (
-                <EducationalCard data={activeCard.data} cardId={activeCard.id} />
+                <VisualRenderer
+                  entry={{
+                    id: activeCard.id,
+                    label: activeCard.label,
+                    vis_type: activeCard.vis_type,
+                    data: activeCard.data,
+                  }}
+                />
               )}
             </motion.div>
           )}

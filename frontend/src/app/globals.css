@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -104,4 +105,73 @@ html, body {
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+
+/* ═══════════════════════════════════════════════════════════
+   MAESTRO VISUAL SYSTEM
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Maestro Green Accent ─── */
+.text-maestro-green {
+  color: #00E676;
+}
+
+.border-maestro-green\/60 {
+  border-color: rgba(0, 230, 118, 0.6);
+}
+
+.bg-maestro-green\/10 {
+  background-color: rgba(0, 230, 118, 0.1);
+}
+
+/* ─── Maestro Card ─── */
+.maestro-card {
+  background: rgba(18, 18, 18, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 0 40px rgba(0, 230, 118, 0.04),
+    0 4px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ─── Breadcrumb text style ─── */
+.maestro-breadcrumb {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace;
+}
+
+/* ─── Active Green Orb ─── */
+.maestro-orb {
+  background: radial-gradient(circle at 35% 35%, #a8ffcf, #00E676 40%, #00a152 80%, #003d1f);
+  box-shadow: 0 0 20px rgba(0, 230, 118, 0.35), 0 0 60px rgba(0, 230, 118, 0.15);
+}
+
+.maestro-orb-pulse {
+  background: transparent;
+  border: 1px solid rgba(0, 230, 118, 0.3);
+  animation: maestro-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes maestro-pulse {
+  0% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* ─── Aura loading pulse (used on backgrounds) ─── */
+@keyframes maestro-aura-breathe {
+  0%, 100% { opacity: 0.12; transform: scale(1); }
+  50% { opacity: 0.22; transform: scale(1.05); }
+}
+
+.maestro-aura-breathe {
+  animation: maestro-aura-breathe 3s ease-in-out infinite;
+}
+
+
 
