@@ -5,6 +5,8 @@ import SteppedProcess from "./visuals/SteppedProcess";
 import DataPoint from "./visuals/DataPoint";
 import CodeSnippet from "./visuals/CodeSnippet";
 import FullSystemMap from "./visuals/FullSystemMap";
+import DecisionPath from "./visuals/DecisionPath";
+import LiveSimulation from "./visuals/LiveSimulation";
 import EducationalCard, { type StructuredVis } from "./EducationalCard";
 
 export type VisType =
@@ -12,6 +14,9 @@ export type VisType =
   | "stepped_process"
   | "data_point"
   | "code_snippet"
+  | "spatial_map"
+  | "decision_path"
+  | "live_sim"
   | "full_system_map"
   | "legacy";
 
@@ -45,8 +50,15 @@ export default function VisualRenderer({ entry }: VisualRendererProps) {
     case "code_snippet":
       return <CodeSnippet data={entry.data} />;
 
+    case "spatial_map":
     case "full_system_map":
       return <FullSystemMap data={entry.data} />;
+
+    case "decision_path":
+      return <DecisionPath data={entry.data} />;
+
+    case "live_sim":
+      return <LiveSimulation data={entry.data} />;
 
     case "legacy":
       // Backward compat: render the old EducationalCard for legacy structured data

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import mermaid from "mermaid";
-import VisualRenderer, { type VisualEntry, type VisType } from "./VisualRenderer";
+import VisualRenderer, { type VisType } from "./VisualRenderer";
 import { type StructuredVis } from "./EducationalCard";
 import { ThemeToggle } from "./ThemeToggle";
 import VoiceOrb from "./VoiceOrb";
@@ -107,9 +107,15 @@ export default function LearningScreen({
       if (msg.vis_type && typeof msg.data === "object" && msg.data !== null) {
         const visType = msg.vis_type as VisType;
         const visData = msg.data as Record<string, unknown>;
+        const currentNode = visData.current_node as { label?: string } | undefined;
         const entry: CardEntry = {
           id: `vis-${Date.now()}`,
-          label: (visData.title as string) || (visData.label as string) || label,
+          label:
+            (visData.title as string) ||
+            (visData.label as string) ||
+            currentNode?.label ||
+            (visData.filename as string) ||
+            label,
           vis_type: visType,
           data: visData,
         };
@@ -466,9 +472,9 @@ export default function LearningScreen({
           ) : (
             <motion.div
               key="viz-view"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: 12, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.99 }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               className="w-full h-full pb-20"
             >

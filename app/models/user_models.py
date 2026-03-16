@@ -76,32 +76,60 @@ class CodeSnippetData(BaseModel):
     filename: str = Field(description="Filename or module name, e.g. 'handler.py', 'auth.js'")
     code: str = Field(description="The actual code to display. Use \\n for newlines.")
 
-class SystemMapNode(BaseModel):
+class SpatialMapNode(BaseModel):
     id: str = Field(description="Unique node ID")
     label: str = Field(description="Display label for the node")
     type: Optional[str] = Field(default=None, description="Optional node type like 'service', 'database', 'queue'")
+    shape: Optional[str] = Field(default=None, description="Optional visual hint like 'orb' or 'hex'")
 
-class SystemMapLink(BaseModel):
+class SpatialMapLink(BaseModel):
     source: str = Field(description="Source node ID")
     target: str = Field(description="Target node ID")
     label: Optional[str] = Field(default=None, description="Optional edge label")
 
-class FullSystemMapData(BaseModel):
+class SpatialMapData(BaseModel):
     title: str = Field(description="Title of the system map")
-    nodes: List[SystemMapNode] = Field(description="List of system nodes")
-    links: List[SystemMapLink] = Field(description="List of connections between nodes")
+    nodes: List[SpatialMapNode] = Field(description="List of system nodes")
+    links: List[SpatialMapLink] = Field(description="List of curved light-trail connections between nodes")
+    focus_node_id: Optional[str] = Field(default=None, description="The node currently being discussed and shown in sharp focus")
+
+class DecisionNode(BaseModel):
+    label: str = Field(description="The current question or decision point shown in the center")
+    context: Optional[str] = Field(default=None, description="Optional short context line under the current node")
+
+class DecisionOption(BaseModel):
+    id: str = Field(description="Unique option ID")
+    label: str = Field(description="Short label for the decision branch")
+    description: Optional[str] = Field(default=None, description="Optional one-line explanation for this branch")
+
+class DecisionPathData(BaseModel):
+    current_node: DecisionNode = Field(description="The current decision prompt or follow-up question")
+    options: List[DecisionOption] = Field(description="2-4 possible branches extending into the background")
+    active_option_id: Optional[str] = Field(default=None, description="Optional option to highlight by default")
+
+class SimulationParameter(BaseModel):
+    name: str = Field(description="Parameter name used in the equation, e.g. 'm', 'b', 'g'")
+    value: float = Field(description="Numeric value for the parameter")
+
+class LiveSimData(BaseModel):
+    equation: str = Field(description="A concise 2D equation to graph, ideally in terms of x, e.g. 'sin(x)', '2*x + 1', '0.5*x^2'")
+    variables_to_watch: List[str] = Field(description="Variable or parameter names that should be surfaced in the UI")
+    target_change: str = Field(description="Short phrase describing the change being demonstrated, e.g. 'increase amplitude' or 'compare steeper slope'")
+    parameters: Optional[List[SimulationParameter]] = Field(default=None, description="Numeric parameter values if the equation references named constants besides x")
 
 class DynamicVisualisationResponse(BaseModel):
     vis_type: str = Field(description=(
         "The type of visual to render. Must be one of: "
-        "'concept_card', 'stepped_process', 'data_point', 'code_snippet', 'full_system_map', 'none'. "
+        "'concept_card', 'stepped_process', 'data_point', 'code_snippet', 'spatial_map', 'decision_path', 'live_sim', 'none'. "
         "Use 'none' if the response is purely conversational and no visual aids understanding."
     ))
     concept_card: Optional[ConceptCardData] = Field(default=None, description="Populated when vis_type is 'concept_card'")
     stepped_process: Optional[SteppedProcessData] = Field(default=None, description="Populated when vis_type is 'stepped_process'")
     data_point: Optional[DataPointData] = Field(default=None, description="Populated when vis_type is 'data_point'")
     code_snippet: Optional[CodeSnippetData] = Field(default=None, description="Populated when vis_type is 'code_snippet'")
-    full_system_map: Optional[FullSystemMapData] = Field(default=None, description="Populated when vis_type is 'full_system_map'")
+    spatial_map: Optional[SpatialMapData] = Field(default=None, description="Populated when vis_type is 'spatial_map'")
+    decision_path: Optional[DecisionPathData] = Field(default=None, description="Populated when vis_type is 'decision_path'")
+    live_sim: Optional[LiveSimData] = Field(default=None, description="Populated when vis_type is 'live_sim'")
 
 
 class SyllabusRequest(BaseModel):

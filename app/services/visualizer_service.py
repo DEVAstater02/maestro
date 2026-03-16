@@ -21,7 +21,7 @@ class VisualizerService:
         Returns:
             dict: {
                 "type": "visualisation",
-                "vis_type": "concept_card" | "stepped_process" | "data_point" | "code_snippet" | "full_system_map",
+                "vis_type": "concept_card" | "stepped_process" | "data_point" | "code_snippet" | "spatial_map" | "decision_path" | "live_sim",
                 "data": { ... type-specific data ... }
             } or None
         """
@@ -71,6 +71,12 @@ class VisualizerService:
                 return None
                 
             vis_type = vis_data.get("vis_type", "none")
+
+            # Backward compat during rollout of the new spatial renderer
+            if vis_type == "full_system_map":
+                vis_type = "spatial_map"
+                if "spatial_map" not in vis_data and "full_system_map" in vis_data:
+                    vis_data["spatial_map"] = vis_data["full_system_map"]
             
             # Skip if no visual needed
             if vis_type == "none":
