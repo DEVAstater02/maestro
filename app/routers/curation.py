@@ -45,6 +45,11 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
     subject = ""
 
     try:
+        await websocket.send_json({
+            "type": "audio_format",
+            "data": tts_service.get_stream_audio_format(),
+        })
+
         # 1. Initial configuration message
         try:
             initial_msg = await websocket.receive_json()

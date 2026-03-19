@@ -1,4 +1,4 @@
-from app.repositories.claude import ClaudeRepository
+import os
 from app.repositories.persistence_repo import PersistenceRepository
 from app.prompts.curation import CURATION_SYSTEM_PROMPT, CURATION_USER_CONTEXT
 from app.services.syllabus_service import SyllabusService
@@ -7,7 +7,20 @@ import re
 
 class CurationService:
     def __init__(self):
-        self.llm_repo = ClaudeRepository()
+        LLM_PROVIDER = os.getenv("LLM_PROVIDER", "claude").lower()
+        print(f"[CurationService] Using LLM provider: {LLM_PROVIDER}")
+
+        if LLM_PROVIDER == "gemini":
+            from app.repositories.gemini import GeminiRepository
+            self.llm_repo = GeminiRepository()
+        elif LLM_PROVIDER == "claude":
+            from app.repositories.claude import ClaudeRepository
+            self.llm_repo = ClaudeRepository()
+        else:
+            raise ValueError(
+                f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
+                "Supported values: 'claude', 'gemini'"
+            )
         self.persistence_repo = PersistenceRepository()
         self.syllabus_service = SyllabusService()
 

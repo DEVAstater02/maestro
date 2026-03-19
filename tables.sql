@@ -12,7 +12,7 @@ CREATE TABLE `users` (
   `grade` varchar(100) DEFAULT NULL,
   `interests` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- 2. Syllabus Table: The "Textbook" 
 -- One syllabus can be used across hundreds of sessions.

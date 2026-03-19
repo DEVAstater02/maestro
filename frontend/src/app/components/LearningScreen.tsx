@@ -5,6 +5,11 @@ import mermaid from "mermaid";
 import EducationalCard, { type StructuredVis } from "./EducationalCard";
 import { ThemeToggle } from "./ThemeToggle";
 import VoiceOrb from "./VoiceOrb";
+import {
+  decodeAudioForPlayback,
+  type AudioChunk,
+  type PlaybackAudioFormat,
+} from "../lib/audioPlayback";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Square, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
@@ -50,7 +55,11 @@ export default function LearningScreen({
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserNodeRef = useRef<AnalyserNode | null>(null);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
-  const responseAudioChunksRef = useRef<ArrayBuffer[]>([]);
+  const responseAudioChunksRef = useRef<AudioChunk[]>([]);
+  const pendingRawAudioBytesRef = useRef<Uint8Array<ArrayBufferLike>>(
+    new Uint8Array(0) as Uint8Array<ArrayBufferLike>
+  );
+  const audioFormatRef = useRef<PlaybackAudioFormat | null>(null);
   const isReceivingAudioRef = useRef(false);
   const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -135,7 +144,7 @@ export default function LearningScreen({
   );
 
   /* ─── Play audio ─── */
-  const playAudio = useCallback(async (chunks: ArrayBuffer[]) => {
+  const playAudio = useCallback(async (chunks: AudioChunk[]) => {
     if (chunks.length === 0) return;
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext();
@@ -150,25 +159,18 @@ export default function LearningScreen({
     if (ctx.state === "suspended") await ctx.resume();
 
     try {
-      const blob = new Blob(chunks);
-      const arrayBuf = await blob.arrayBuffer();
-      if (arrayBuf.byteLength === 0) return;
-
-      const arrayBufCopy = arrayBuf.slice(0);
-
-      let audioBuf: AudioBuffer;
-      try {
-        audioBuf = await ctx.decodeAudioData(arrayBuf);
-      } catch {
-        const floatData = new Float32Array(arrayBufCopy);
-        if (floatData.length === 0) return;
-        audioBuf = ctx.createBuffer(1, floatData.length, 44100);
-        audioBuf.getChannelData(0).set(floatData);
-      }
+      const { audioBuffer, pendingRawBytes } = await decodeAudioForPlayback({
+        audioContext: ctx,
+        chunks,
+        audioFormat: audioFormatRef.current,
+        pendingRawBytes: pendingRawAudioBytesRef.current,
+      });
+      pendingRawAudioBytesRef.current = pendingRawBytes;
+      if (!audioBuffer) return;
 
       return new Promise<void>((resolve) => {
         const source = ctx.createBufferSource();
-        source.buffer = audioBuf;
+        source.buffer = audioBuffer;
         source.connect(analyserNodeRef.current ?? ctx.destination);
         source.start(0);
         setAppState("speaking");
@@ -200,6 +202,8 @@ export default function LearningScreen({
     const wsUrl = `ws://localhost:8000/ws/voice?${params.toString()}`;
     const ws = new WebSocket(wsUrl);
     ws.binaryType = "arraybuffer";
+    pendingRawAudioBytesRef.current = new Uint8Array(0) as Uint8Array<ArrayBufferLike>;
+    audioFormatRef.current = null;
 
     ws.onopen = () => {
       setConnectionStatus("connected");
@@ -220,7 +224,9 @@ export default function LearningScreen({
       if (typeof event.data === "string") {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === "visualisation" && msg.data) {
+          if (msg.type === "audio_format") {
+            audioFormatRef.current = msg.data;
+          } else if (msg.type === "visualisation" && msg.data) {
             handleVisualisation(msg);
           } else if (msg.type === "transcription" && msg.data) {
             lastTranscriptionRef.current = msg.data;
@@ -244,7 +250,7 @@ export default function LearningScreen({
         setAppState("receiving");
       }
 
-      responseAudioChunksRef.current.push(event.data as ArrayBuffer);
+      responseAudioChunksRef.current.push(event.data as AudioChunk);
 
       if (playbackTimeoutRef.current) clearTimeout(playbackTimeoutRef.current);
       playbackTimeoutRef.current = setTimeout(async () => {
