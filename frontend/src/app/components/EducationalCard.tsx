@@ -66,9 +66,11 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
     >
       <div className="max-w-4xl mx-auto space-y-6">
         {/* ─── Title ─── */}
-        <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--color-text)]">
-          {data.title}
-        </h2>
+        {!hasDiagram && (
+          <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--color-text)]">
+            {data.title}
+          </h2>
+        )}
 
         {/* ─── Diagram (full-width) ─── */}
         {hasDiagram && (
@@ -114,13 +116,12 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
         {/* ─── Key Points ─── */}
         {data.keyPoints && data.keyPoints.length > 0 && (
           <div
-            className={`grid gap-3 ${
-              data.keyPoints.length === 1
+            className={`grid gap-3 ${data.keyPoints.length === 1
                 ? "grid-cols-1"
                 : data.keyPoints.length === 2
                   ? "grid-cols-1 sm:grid-cols-2"
                   : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
-            }`}
+              }`}
           >
             {data.keyPoints.map((kp, i) => (
               <motion.div

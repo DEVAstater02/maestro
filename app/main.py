@@ -139,7 +139,7 @@ async def conversation_ws_handler(
             print(f"[Maestro] Greeting: {greeting_text[:80]}...")
 
             # Stream greeting audio
-            async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([greeting_text])):
+            async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([greeting_text]), provider="grok"):
                 await websocket.send_bytes(audio_chunk)
 
             messages.append({"role": "agent", "input": greeting_text})
@@ -217,7 +217,7 @@ async def conversation_ws_handler(
 
             try:
                 # Stream audio chunks based on the provider (Cartesia/ElevenLabs now use sentence-based streaming)
-                async for chunk_text, audio_chunk in tts_service.stream_speech(tracked_text_stream(text_stream)):
+                async for chunk_text, audio_chunk in tts_service.stream_speech(tracked_text_stream(text_stream), provider="grok"):
                     if not first_audio_chunk:
                         first_audio_chunk = True
                         print(f"[Maestro] TTS TTFB (Time to First Byte): {time.perf_counter() - tts_start_time:.4f}s")
