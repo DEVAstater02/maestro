@@ -73,7 +73,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
         )
         
         # Stream the first question
-        async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question])):
+        async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question]), provider="grok"):
             await websocket.send_bytes(audio_chunk)
             
         await websocket.send_json({"type": "status", "data": "waiting_for_input", "text": current_question})
@@ -142,7 +142,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                 else:
                     # Continue curation
                     current_question = llm_response
-                    async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question])):
+                    async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([current_question]), provider="grok"):
                         await websocket.send_bytes(audio_chunk)
                     
                     await websocket.send_json({"type": "status", "data": "waiting_for_input", "text": current_question})

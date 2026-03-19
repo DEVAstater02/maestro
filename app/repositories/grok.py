@@ -71,7 +71,7 @@ class GrokRepository:
         try:
             async with websockets.connect(
                 uri, 
-                extra_headers={"Authorization": f"Bearer {self.api_key}"}
+                additional_headers={"Authorization": f"Bearer {self.api_key}"}
             ) as ws:
                 full_text = ""
                 sentence_buffer = ""
