@@ -17,6 +17,14 @@ Maestro is a production-grade, voice-based AI tutoring application. You speak to
 
 ---
 
+## 📸 Screenshots
+
+| Teaching Interface | Visual Explanations | Detailed Context |
+|---|---|---|
+| ![Teaching Interface](images/SpeakingScreen.png) | ![Visual Explanations](images/Visualization.png) | ![Detailed Context](images/ExplainationBlocks.png) |
+
+---
+
 ## 🏗️ Architecture
 
 ```
