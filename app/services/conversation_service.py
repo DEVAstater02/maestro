@@ -1,7 +1,7 @@
 import os
 import re
 from typing import Tuple, List, Dict, Optional
-from app.repositories import claude, gemini
+from app.repositories import claude, gemini, openai_repo
 from app.repositories.persistence_repo import PersistenceRepository
 from app.prompts.session_memory import SESSION_MEMORY_PROMPT
 
@@ -17,10 +17,12 @@ class ConversationService:
             self.llm_repo = gemini.GeminiRepository()
         elif LLM_PROVIDER == "claude":
             self.llm_repo = claude.ClaudeRepository()
+        elif LLM_PROVIDER == "openai":
+            self.llm_repo = openai_repo.OpenAIRepository()
         else:
             raise ValueError(
                 f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
-                "Supported values: 'claude', 'gemini'"
+                "Supported values: 'claude', 'gemini', 'openai'"
             )
 
     def get_llm_repo(self):

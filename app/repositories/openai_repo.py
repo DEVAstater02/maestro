@@ -1,5 +1,7 @@
 import os
 from openai import OpenAI, AsyncOpenAI
+from pydantic import BaseModel
+from typing import Type, Optional
 
 VOICE_INSTRUCTIONS = "Speak clearly and project your voice with strong volume. Use a confident, engaging tone."
 
@@ -11,6 +13,91 @@ class OpenAIRepository:
             raise ValueError("OPENAI_API_KEY environment variable not set in .env")
         self.client = OpenAI(api_key=self.api_key)
         self.async_client = AsyncOpenAI(api_key=self.api_key)
+
+    async def generate_response(
+        self, 
+        prompt: str, 
+        system_prompt: str = None, 
+        model: str = "gpt-4o-mini", 
+        max_tokens: int = 1536
+    ) -> str:
+        """
+        Generates a response from the OpenAI LLM API for a given prompt.
+        """
+        if not prompt:
+            raise ValueError("Prompt cannot be empty.")
+
+        try:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            response = await self.async_client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            print(f"OpenAI LLM Generation Error: {e}")
+            raise
+
+    async def generate_structured_response(
+        self,
+        prompt: str,
+        response_schema: Type[BaseModel],
+        model: str = "gpt-4o-mini",
+    ) -> Optional[BaseModel]:
+        """
+        Generates a structured response from OpenAI that conforms to a Pydantic schema.
+        Uses OpenAI's 'Structured Outputs' feature.
+        """
+        if not prompt:
+            raise ValueError("Prompt cannot be empty.")
+
+        try:
+            response = await self.async_client.beta.chat.completions.parse(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format=response_schema,
+            )
+            return response.choices[0].message.parsed
+        except Exception as e:
+            print(f"OpenAI Structured Output Error: {e}")
+            return None
+
+    async def stream_response(
+        self, 
+        prompt: str, 
+        system_prompt: str = None, 
+        model: str = "gpt-4o-mini", 
+        max_tokens: int = 1536
+    ):
+        """
+        Streams a response from the OpenAI LLM API for a given prompt.
+        """
+        if not prompt:
+            raise ValueError("Prompt cannot be empty.")
+
+        try:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            stream = await self.async_client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            print(f"OpenAI LLM Streaming Error: {e}")
+            raise
 
     def generate_speech(self, text: str, voice_id: str = "marin") -> bytes:
         """
