@@ -4,11 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import mermaid from "mermaid";
 import PanZoomViewer from "./PanZoomViewer";
 import { motion } from "framer-motion";
+import VizRenderer from "./vizualizer/VizRenderer";  // ← new
+import { VizSpec } from "./vizualizer/types/visualizer";         // ← new
 
 /* ─── Types ─── */
 export interface StructuredVis {
   title: string;
-  diagram?: string;
+  diagram?: string;       // existing mermaid — untouched
+  viz?: VizSpec;          // ← new: richer viz from your system
   explanation?: {
     heading: string;
     code: string;
@@ -29,7 +32,7 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
   const [diagramError, setDiagramError] = useState(false);
   const renderAttempted = useRef(false);
 
-  /* ─── Render Mermaid diagram ─── */
+  /* ─── Render Mermaid diagram (unchanged) ─── */
   useEffect(() => {
     if (!data.diagram || renderAttempted.current) return;
     renderAttempted.current = true;
@@ -46,7 +49,6 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
     })();
   }, [data.diagram, cardId]);
 
-  // Reset when cardId changes
   useEffect(() => {
     renderAttempted.current = false;
     setDiagramSvg(null);
@@ -54,7 +56,8 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
   }, [cardId]);
 
   const hasExplanation = data.explanation?.code;
-  const hasDiagram = data.diagram;
+  const hasDiagram = data.diagram && !data.viz;  // ← only use mermaid if no viz
+  const hasViz = !!data.viz;                      // ← new
 
   return (
     <motion.div
@@ -65,18 +68,26 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
       className="w-full h-full overflow-auto p-6 sm:p-10 pb-40 scrollbar-thin"
     >
       <div className="max-w-4xl mx-auto space-y-6">
+
         {/* ─── Title ─── */}
-        {!hasDiagram && (
+        {!hasDiagram && !hasViz && (
           <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--color-text)]">
             {data.title}
           </h2>
         )}
 
-        {/* ─── Diagram (full-width) ─── */}
+        {/* ─── Rich viz (new) ─── */}
+        {hasViz && (
+          <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-bg)] p-4">
+            <VizRenderer spec={data.viz!} />
+          </div>
+        )}
+
+        {/* ─── Mermaid diagram (existing, unchanged) ─── */}
         {hasDiagram && (
-          <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-bg)] min-h-[300px] relative">
+          <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-bg)] min-h-[500px] relative">
             {diagramError ? (
-              <div className="w-full h-[300px] flex flex-col items-center justify-center p-8 bg-[var(--color-surface-alt)]">
+              <div className="w-full h-[500px] flex flex-col items-center justify-center p-8 bg-[var(--color-surface-alt)]">
                 <p className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-1">
                   Rendering Error
                 </p>
@@ -87,14 +98,15 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
             ) : diagramSvg ? (
               <PanZoomViewer svgHtml={diagramSvg} diagramId={cardId} />
             ) : (
-              <div className="w-full h-[300px] flex items-center justify-center">
+              <div className="w-full h-[500px] flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-text)] rounded-full animate-spin" />
               </div>
             )}
           </div>
         )}
 
-        {/* ─── Explanation / Code ─── */}
+        {/* ─── Everything below unchanged ─── */}
+
         {hasExplanation && (
           <div className="space-y-3">
             <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">
@@ -113,7 +125,6 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
           </div>
         )}
 
-        {/* ─── Key Points ─── */}
         {data.keyPoints && data.keyPoints.length > 0 && (
           <div
             className={`grid gap-3 ${data.keyPoints.length === 1
@@ -142,7 +153,6 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
           </div>
         )}
 
-        {/* ─── Examples ─── */}
         {data.examples && data.examples.length > 0 && (
           <div className="space-y-2">
             {data.examples.map((ex, i) => (
@@ -179,7 +189,6 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
           </div>
         )}
 
-        {/* ─── Footnote ─── */}
         {data.footnote && (
           <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
             {data.footnote}

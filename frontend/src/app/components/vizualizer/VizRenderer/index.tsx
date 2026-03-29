@@ -11,23 +11,25 @@ interface VizRendererProps {
 }
 
 export default function VizRenderer({ spec }: VizRendererProps) {
+    if (!spec || !spec.data) return null;
+
     switch (spec.type) {
         case 'chart':
             return (
                 <DataChart
                     data={spec.data}
-                    height={300}
+                    height={500}
                 />
             )
 
         case 'flowchart':
-            return <AgentFlow nodes={spec.data.nodes} edges={spec.data.edges} />
+            return <AgentFlow nodes={spec.data.nodes} edges={spec.data.edges} height={500} />
 
         case 'network':
             return (
                 <NetworkGraph
                     data={spec.data}
-                    height={300}
+                    height={500}
                 />
             )
 
