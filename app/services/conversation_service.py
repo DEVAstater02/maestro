@@ -6,28 +6,41 @@ from app.repositories.persistence_repo import PersistenceRepository
 from app.prompts.session_memory import SESSION_MEMORY_PROMPT
 
 class ConversationService:
-    def __init__(self):
+    def __init__(self, default_provider: str = None):
         self.persistence_repo = PersistenceRepository()
         
-        # Determine LLM Provider
-        LLM_PROVIDER = os.getenv("LLM_PROVIDER", "claude").lower()
-        print(f"[ConversationService] Using LLM provider: {LLM_PROVIDER}")
+        # Determine default LLM Provider
+        self.default_provider = default_provider or os.getenv("LLM_PROVIDER", "claude").lower()
+        print(f"[ConversationService] Initialized with default provider: {self.default_provider}")
         
-        if LLM_PROVIDER == "gemini":
-            self.llm_repo = gemini.GeminiRepository()
-        elif LLM_PROVIDER == "claude":
-            self.llm_repo = claude.ClaudeRepository()
-        elif LLM_PROVIDER == "openai":
-            self.llm_repo = openai_repo.OpenAIRepository()
+        # Cache for repositories (Lazy Loading)
+        self._repos = {}
+
+    def _get_repo(self, provider: str = None):
+        """Get or create a repo for the given provider."""
+        effective = (provider or self.default_provider).lower()
+        
+        if effective in self._repos:
+            return self._repos[effective]
+            
+        if effective == "gemini":
+            repo = gemini.GeminiRepository()
+        elif effective == "claude":
+            repo = claude.ClaudeRepository()
+        elif effective == "openai":
+            repo = openai_repo.OpenAIRepository()
         else:
             raise ValueError(
-                f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
+                f"Unknown LLM provider '{effective}'. "
                 "Supported values: 'claude', 'gemini', 'openai'"
             )
+            
+        self._repos[effective] = repo
+        return repo
 
-    def get_llm_repo(self):
+    def get_llm_repo(self, provider: str = None):
         """Returns the active LLM repository instance for services that need it directly (e.g. VisualizerService)"""
-        return self.llm_repo
+        return self._get_repo(provider)
 
     def create_session(self, user_id: str, syllabus_id: str = None) -> str:
         return self.persistence_repo.create_session(user_id=user_id, syllabus_id=syllabus_id)
@@ -41,12 +54,14 @@ class ConversationService:
     def get_latest_session(self, user_id: str = None, syllabus_id: str = None) -> Optional[Dict]:
         return self.persistence_repo.get_latest_session(user_id, syllabus_id)
 
-    async def stream_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536):
-        async for chunk in self.llm_repo.stream_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens):
+    async def stream_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536, provider: str = None):
+        repo = self._get_repo(provider)
+        async for chunk in repo.stream_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens):
             yield chunk
 
-    async def generate_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536) -> str:
-        return await self.llm_repo.generate_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens)
+    async def generate_response(self, prompt: str, system_prompt: str = None, max_tokens: int = 1536, provider: str = None) -> str:
+        repo = self._get_repo(provider)
+        return await repo.generate_response(prompt=prompt, system_prompt=system_prompt, max_tokens=max_tokens)
 
     async def update_memory(
         self,
@@ -54,10 +69,12 @@ class ConversationService:
         TURN_COUNTER: int,
         SESSION_MEMORY: str,
         session_id: str = None,
-        force: bool = False
+        force: bool = False,
+        provider: str = None
     ) -> Tuple[int, str]:
         if (TURN_COUNTER >= 10 or force) and messages:
-            print("[Maestro] Updating session memory...")
+            print(f"[Maestro] Updating session memory using {provider or self.default_provider}...")
+            repo = self._get_repo(provider)
             TURN_COUNTER = 0
 
             prompt = SESSION_MEMORY_PROMPT.format(
@@ -65,7 +82,7 @@ class ConversationService:
                 CONVERSATION_MESSAGES=self.format_history(messages)
             )
 
-            response = await self.llm_repo.generate_response(prompt=prompt)
+            response = await repo.generate_response(prompt=prompt)
 
             # Extract content between <updated_session_memory> tags
             match = re.search(r'<updated_session_memory>(.*?)</updated_session_memory>', response, re.DOTALL)
