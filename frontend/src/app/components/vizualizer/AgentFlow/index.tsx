@@ -122,8 +122,16 @@ export default function AgentFlow({
     const allRFEdges = edges.map(toRFEdge)
     const allRFNodes = getLayoutedNodes(nodes.map(toRFNode), allRFEdges)
 
-    const [rfNodes, setRfNodes, onNodesChange] = useNodesState(animated ? [] : allRFNodes)
-    const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(animated ? [] : allRFEdges)
+    const initialNodes = animated 
+        ? allRFNodes.map(n => ({ ...n, style: { ...n.style, opacity: 0, transition: 'opacity 0.4s ease' } }))
+        : allRFNodes;
+        
+    const initialEdges = animated
+        ? allRFEdges.map(e => ({ ...e, style: { ...e.style, opacity: 0, transition: 'opacity 0.4s ease' } }))
+        : allRFEdges;
+
+    const [rfNodes, setRfNodes, onNodesChange] = useNodesState(initialNodes)
+    const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(initialEdges)
 
     const onConnect = useCallback(
         (params: Connection) => setRfEdges((eds: Edge[]) => addEdge(params, eds)),
@@ -133,18 +141,16 @@ export default function AgentFlow({
     useEffect(() => {
         if (!animated) return
 
-        const laidOutMap = Object.fromEntries(allRFNodes.map(n => [n.id, n]))
-
         const sequence: Array<
-            | { kind: 'node'; item: FlowNode }
-            | { kind: 'edge'; item: FlowEdge }
+            | { kind: 'node'; id: string }
+            | { kind: 'edge'; id: string }
         > = []
 
         nodes.forEach(node => {
-            sequence.push({ kind: 'node', item: node })
+            sequence.push({ kind: 'node', id: node.id })
             edges
                 .filter(e => e.source === node.id)
-                .forEach(edge => sequence.push({ kind: 'edge', item: edge }))
+                .forEach(edge => sequence.push({ kind: 'edge', id: edge.id }))
         })
 
         const timeouts: ReturnType<typeof setTimeout>[] = []
@@ -152,19 +158,32 @@ export default function AgentFlow({
         sequence.forEach((step, i) => {
             const t = setTimeout(() => {
                 if (step.kind === 'node') {
-                    setRfNodes((prev: Node[]) => [...prev, laidOutMap[step.item.id]])
+                    setRfNodes((nds: Node[]) => nds.map(n => n.id === step.id ? { ...n, style: { ...n.style, opacity: 1 } } : n))
                 } else {
-                    setRfEdges((prev: Edge[]) => [...prev, toRFEdge(step.item)])
+                    setRfEdges((eds: Edge[]) => eds.map(e => e.id === step.id ? { ...e, style: { ...e.style, opacity: 1 } } : e))
                 }
             }, i * stepDelay)
             timeouts.push(t)
         })
 
         return () => timeouts.forEach(clearTimeout)
-    }, [nodes, edges, animated, stepDelay])
+    }, [nodes, edges, animated, stepDelay, setRfNodes, setRfEdges])
 
     return (
         <div style={{ width: '100%', height, background: 'var(--color-bg)' }}>
+            <style>{`
+                .react-flow__controls button {
+                    background-color: var(--color-surface-alt, #1e293b) !important;
+                    border-bottom: 1px solid var(--color-border, #334155) !important;
+                    fill: var(--color-text, #f8fafc) !important;
+                }
+                .react-flow__controls button:hover {
+                    background-color: var(--color-border, #475569) !important;
+                }
+                .react-flow__attribution {
+                    display: none !important;
+                }
+            `}</style>
             <ReactFlow
                 nodes={rfNodes}
                 edges={rfEdges}

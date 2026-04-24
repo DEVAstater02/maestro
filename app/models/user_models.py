@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field, EmailStr
-from typing import List, Optional
+from typing import Annotated, Dict, List, Literal, Optional, Union
 from datetime import date
 
 class UserQuestionRequest(BaseModel):
@@ -26,20 +26,78 @@ class Example(BaseModel):
     input: str = Field(description="Example input")
     output: str = Field(description="Expected output")
 
+# ─── VizSpec models (mirror frontend types/visualizer.tsx) ───
+
+class FlowNodeModel(BaseModel):
+    id: str
+    label: str
+    type: Optional[Literal['input', 'output', 'llm', 'tool', 'default']] = 'default'
+
+import uuid
+
+class FlowEdgeModel(BaseModel):
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
+    source: str
+    target: str
+    label: Optional[str] = None
+
+class FlowchartData(BaseModel):
+    nodes: List[FlowNodeModel]
+    edges: List[FlowEdgeModel]
+
+class FlowchartViz(BaseModel):
+    type: Literal['flowchart']
+    data: FlowchartData
+
+class ChartData(BaseModel):
+    chartType: Literal['bar', 'line', 'pie']
+    xKey: str
+    yKey: str
+    rows: List[Dict[str, Union[str, int, float]]]
+
+class ChartViz(BaseModel):
+    type: Literal['chart']
+    data: ChartData
+
+class NetworkNodeModel(BaseModel):
+    id: str
+    label: str
+    group: Optional[str] = 'default'
+
+class NetworkData(BaseModel):
+    nodes: List[NetworkNodeModel]
+    edges: List[FlowEdgeModel]
+
+class NetworkViz(BaseModel):
+    type: Literal['network']
+    data: NetworkData
+
+class MermaidData(BaseModel):
+    syntax: str
+
+class MermaidViz(BaseModel):
+    type: Literal['mermaid']
+    data: MermaidData
+
+VizSpecModel = Annotated[
+    Union[FlowchartViz, ChartViz, NetworkViz, MermaidViz],
+    Field(discriminator='type')
+]
+
 class VisualisationResponse(BaseModel):
     title: str = Field(description="Short descriptive title of the concept being visualised")
-    diagram: str = Field(description=(
-        "Valid Mermaid.js diagram code. Choose the best type: "
-        "flowchart TD/LR (for algorithms, processes, decisions), "
-        "sequenceDiagram (for component interactions, API flows), "
-        "classDiagram (for OOP design, domain models), or "
-        "stateDiagram-v2 (for state machines, lifecycles). "
-        "ALWAYS quote all node labels: A[\"Label\"], B{{\"Decision\"}}. "
-        "Use \\n to separate lines. Keep to 4-10 nodes."
+    viz: Optional[VizSpecModel] = Field(default=None, description=(
+        "Structured visualisation. Choose one type: "
+        "'flowchart' (algorithms, processes, decision trees — 3-6 nodes), "
+        "'chart' (numerical comparisons, trends — bar/line/pie), "
+        "'network' (relationships between concepts), "
+        "'mermaid' (sequence/class/state diagrams only). "
+        "Omit if no visual adds clarity."
     ))
     explanation: Optional[ExplanationBlock] = Field(default=None, description="Code explanation block with pseudocode")
     keyPoints: Optional[List[KeyPoint]] = Field(default=None, description="2-3 key concepts that aid understanding")
     examples: Optional[List[Example]] = Field(default=None, description="Concrete examples with input/output, only if pedagogically useful")
+    footnote: Optional[str] = Field(default=None, description="Optional caveat or extra context")
 
 class SyllabusRequest(BaseModel):
     topic: str

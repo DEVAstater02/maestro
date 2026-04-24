@@ -17,10 +17,13 @@ class SyllabusService:
         elif LLM_PROVIDER == "claude":
             from app.repositories.claude import ClaudeRepository
             self.llm_repo = ClaudeRepository()
+        elif LLM_PROVIDER == "openai":
+            from app.repositories.openai_repo import OpenAIRepository
+            self.llm_repo = OpenAIRepository()
         else:
             raise ValueError(
                 f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
-                "Supported values: 'claude', 'gemini'"
+                "Supported values: 'claude', 'gemini', 'openai'"
             )
         self.persistence_repo = PersistenceRepository()
 

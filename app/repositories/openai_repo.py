@@ -48,6 +48,7 @@ class OpenAIRepository:
         prompt: str,
         response_schema: Type[BaseModel],
         model: str = "gpt-4o-mini",
+        system_prompt: str = None,
     ) -> Optional[BaseModel]:
         """
         Generates a structured response from OpenAI that conforms to a Pydantic schema.
@@ -57,12 +58,29 @@ class OpenAIRepository:
             raise ValueError("Prompt cannot be empty.")
 
         try:
-            response = await self.async_client.beta.chat.completions.parse(
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+
+            schema_dict = response_schema.model_json_schema()
+            response = await self.async_client.chat.completions.create(
                 model=model,
-                messages=[{"role": "user", "content": prompt}],
-                response_format=response_schema,
+                messages=messages,
+                response_format={
+                    "type": "json_schema", 
+                    "json_schema": {
+                        "name": response_schema.__name__, 
+                        "strict": False, 
+                        "schema": schema_dict
+                    }
+                },
             )
-            return response.choices[0].message.parsed
+            content = response.choices[0].message.content
+            if content:
+                from pydantic import TypeAdapter
+                return response_schema.model_validate_json(content)
+            return None
         except Exception as e:
             print(f"OpenAI Structured Output Error: {e}")
             return None

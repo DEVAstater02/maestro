@@ -1,17 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import mermaid from "mermaid";
-import PanZoomViewer from "./PanZoomViewer";
 import { motion } from "framer-motion";
-import VizRenderer from "./vizualizer/VizRenderer";  // ← new
-import { VizSpec } from "./vizualizer/types/visualizer";         // ← new
+import VizRenderer from "./vizualizer/VizRenderer";
+import { VizSpec } from "./vizualizer/types/visualizer";
 
-/* ─── Types ─── */
 export interface StructuredVis {
   title: string;
-  diagram?: string;       // existing mermaid — untouched
-  viz?: VizSpec;          // ← new: richer viz from your system
+  viz?: VizSpec;
   explanation?: {
     heading: string;
     code: string;
@@ -28,36 +23,8 @@ interface EducationalCardProps {
 }
 
 export default function EducationalCard({ data, cardId }: EducationalCardProps) {
-  const [diagramSvg, setDiagramSvg] = useState<string | null>(null);
-  const [diagramError, setDiagramError] = useState(false);
-  const renderAttempted = useRef(false);
-
-  /* ─── Render Mermaid diagram (unchanged) ─── */
-  useEffect(() => {
-    if (!data.diagram || renderAttempted.current) return;
-    renderAttempted.current = true;
-
-    (async () => {
-      try {
-        const id = `edu-mermaid-${cardId}`;
-        const { svg } = await mermaid.render(id, data.diagram!);
-        setDiagramSvg(svg);
-      } catch (err) {
-        console.error("Mermaid Render Error for card:", cardId, err);
-        setDiagramError(true);
-      }
-    })();
-  }, [data.diagram, cardId]);
-
-  useEffect(() => {
-    renderAttempted.current = false;
-    setDiagramSvg(null);
-    setDiagramError(false);
-  }, [cardId]);
-
+  const hasViz = !!data.viz;
   const hasExplanation = data.explanation?.code;
-  const hasDiagram = data.diagram && !data.viz;  // ← only use mermaid if no viz
-  const hasViz = !!data.viz;                      // ← new
 
   return (
     <motion.div
@@ -69,43 +36,17 @@ export default function EducationalCard({ data, cardId }: EducationalCardProps) 
     >
       <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* ─── Title ─── */}
-        {!hasDiagram && !hasViz && (
+        {!hasViz && (
           <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--color-text)]">
             {data.title}
           </h2>
         )}
 
-        {/* ─── Rich viz (new) ─── */}
         {hasViz && (
           <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-bg)] p-4">
-            <VizRenderer spec={data.viz!} />
+            <VizRenderer spec={data.viz!} id={cardId} />
           </div>
         )}
-
-        {/* ─── Mermaid diagram (existing, unchanged) ─── */}
-        {hasDiagram && (
-          <div className="rounded-2xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-bg)] min-h-[500px] relative">
-            {diagramError ? (
-              <div className="w-full h-[500px] flex flex-col items-center justify-center p-8 bg-[var(--color-surface-alt)]">
-                <p className="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-wider mb-1">
-                  Rendering Error
-                </p>
-                <p className="text-[12px] text-[var(--color-text-muted)] text-center max-w-[220px]">
-                  The diagram syntax is invalid.
-                </p>
-              </div>
-            ) : diagramSvg ? (
-              <PanZoomViewer svgHtml={diagramSvg} diagramId={cardId} />
-            ) : (
-              <div className="w-full h-[500px] flex items-center justify-center">
-                <div className="w-5 h-5 border-2 border-[var(--color-border)] border-t-[var(--color-text)] rounded-full animate-spin" />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── Everything below unchanged ─── */}
 
         {hasExplanation && (
           <div className="space-y-3">
