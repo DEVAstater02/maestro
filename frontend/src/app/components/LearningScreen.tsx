@@ -49,7 +49,7 @@ export default function LearningScreen({
   const [activeIndex, setActiveIndex] = useState(-1);
   const lastTranscriptionRef = useRef("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [showTranscript, setShowTranscript] = useState(true);
+  const [showTranscript, setShowTranscript] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,6 +73,8 @@ export default function LearningScreen({
   const isReceivingAudioRef = useRef(false);
   const playbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackChainRef = useRef<Promise<void>>(Promise.resolve());
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const unmountedRef = useRef(false);
 
   const truncateLabel = (text: string, max = 32) =>
     text.length > max ? text.slice(0, max) + "\u2026" : text;
@@ -100,7 +102,7 @@ export default function LearningScreen({
 
   /* ─── Play audio ─── */
   const playAudio = useCallback(async (chunks: AudioChunk[]) => {
-    if (chunks.length === 0) return;
+    if (chunks.length === 0 || unmountedRef.current) return;
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext();
       const analyser = audioContextRef.current.createAnalyser();
@@ -127,10 +129,12 @@ export default function LearningScreen({
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(analyserNodeRef.current ?? ctx.destination);
+        activeSourceRef.current = source;
         source.start(0);
         setAppState("speaking");
         setStatus("Speaking");
         source.onended = () => {
+          activeSourceRef.current = null;
           setAppState("idle");
           setStatus("Ready");
           resolve();
@@ -199,8 +203,10 @@ export default function LearningScreen({
       }
 
       // Binary audio data
+      if (unmountedRef.current) return;
       if (!audioContextRef.current) audioContextRef.current = new AudioContext();
       if (audioContextRef.current.state === "suspended") await audioContextRef.current.resume();
+      if (unmountedRef.current) return;
 
       if (!isReceivingAudioRef.current) {
         isReceivingAudioRef.current = true;
@@ -225,9 +231,16 @@ export default function LearningScreen({
   }, [syllabusId, handleVisualisation, playAudio]);
 
   useEffect(() => {
+    unmountedRef.current = false;
     connectWS();
     return () => {
+      unmountedRef.current = true;
       socketRef.current?.close();
+      if (playbackTimeoutRef.current) clearTimeout(playbackTimeoutRef.current);
+      try { activeSourceRef.current?.stop(); } catch { /* already ended */ }
+      activeSourceRef.current = null;
+      audioContextRef.current?.close();
+      audioContextRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

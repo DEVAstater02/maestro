@@ -5,7 +5,7 @@ auth.py  –  FastAPI router for signup / signin / me
 from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import Optional
 
-from app.models.user_models import SignupRequest, SigninRequest, AuthResponse
+from app.models.auth_models import SignupRequest, SigninRequest, AuthResponse
 from app.repositories.persistence_repo import PersistenceRepository
 from app.utils.auth_utils import (
     hash_password,
