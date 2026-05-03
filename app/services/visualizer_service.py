@@ -27,16 +27,21 @@ class VisualizerService:
         lines = diagram.split("\n")
         header = lines[0].lower().strip() if lines else ""
         is_flowchart = header.startswith("flowchart") or header.startswith("graph")
-        
+        is_sequence = header.startswith("sequencediagram")
+
         sanitized = []
 
         for line in lines:
             trimmed = line.strip()
             if not trimmed:
                 continue
-                
+
             # Remove trailing semicolons which can break some Mermaid versions
             trimmed = trimmed.rstrip(';')
+
+            if is_sequence:
+                # -> (no arrowhead) → ->> (with arrowhead); leave ->> and --> untouched
+                trimmed = re.sub(r'->(?!>)', '->>', trimmed)
 
             if is_flowchart:
                 # 1. Handle double brackets/braces/shapes first (more specific)
@@ -86,6 +91,7 @@ class VisualizerService:
                 result = await self.llm_repo.generate_structured_response(
                     prompt=visualiser_user_prompt,
                     response_schema=VisualisationResponse,
+                    system_prompt=VISUALISER_SYSTEM_PROMPT,
                 )
                 if result:
                     vis_data = result.model_dump(exclude_none=True)
@@ -111,7 +117,7 @@ class VisualizerService:
                     except json.JSONDecodeError:
                         print("[Visualizer] JSON parse failed for visualisation")
 
-            # sanitize mermaid only where needed
+            # sanitize mermaid syntax if viz type is mermaid
             if vis_data:
                 viz = vis_data.get("viz")
                 if viz and viz.get("type") == "mermaid":
@@ -119,9 +125,6 @@ class VisualizerService:
                     if syntax:
                         viz["data"]["syntax"] = self.sanitize_mermaid(syntax)
                         print("[Visualizer] Sanitized Mermaid syntax")
-                elif "diagram" in vis_data and vis_data["diagram"]:
-                    vis_data["diagram"] = self.sanitize_mermaid(vis_data["diagram"])
-                    print("[Visualizer] Sanitized legacy diagram")
 
             if vis_data:
                 return {

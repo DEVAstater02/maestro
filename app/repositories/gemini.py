@@ -40,6 +40,7 @@ class GeminiRepository:
         prompt: str,
         response_schema: Type[BaseModel],
         model: str = "gemini-flash-latest",
+        system_prompt: str = None,
     ) -> Optional[BaseModel]:
         """
         Generates a structured response from Gemini that conforms to a Pydantic schema.
@@ -66,6 +67,7 @@ class GeminiRepository:
                     max_output_tokens=8192,
                     response_mime_type="application/json",
                     response_json_schema=response_schema.model_json_schema(),
+                    system_instruction=system_prompt or "",
                 ),
             )
             # Parse and validate with Pydantic

@@ -232,6 +232,11 @@ async def conversation_ws_handler(
                 messages.append({"role": "agent", "input": full_response})
 
                 print(f"[Maestro] Total generation cycle (LLM + TTS): {tts_end_time - llm_start_time:.4f}s")
+                
+                await websocket.send_json({
+                    "type": "tutor_transcription",
+                    "data": full_response
+                })
 
                 # 6 - Generate and send Visualisation
                 try:
