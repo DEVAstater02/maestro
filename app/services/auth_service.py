@@ -1,5 +1,5 @@
 from typing import Optional, Dict
-from app.models.user_models import SignupRequest, SigninRequest, AuthResponse
+from app.models.auth_models import SignupRequest, SigninRequest, AuthResponse
 from app.repositories.persistence_repo import PersistenceRepository
 from app.utils.auth_utils import (
     hash_password,

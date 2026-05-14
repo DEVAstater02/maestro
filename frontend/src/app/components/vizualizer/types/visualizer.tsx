@@ -26,12 +26,210 @@ export interface NetworkData {
     edges: { id: string; source: string; target: string }[]
 }
 
+// --- timeline ---
+export interface TimelineEvent {
+    date: string
+    title: string
+    description: string
+    category?: string
+}
+
+export interface TimelineData {
+    events: TimelineEvent[]
+    axis_label?: string
+}
+
+// --- tree ---
+export interface TreeNode {
+    id: string
+    label: string
+    note?: string
+    children?: TreeNode[]
+}
+
+export interface TreeData {
+    root: TreeNode
+    direction: 'top-down' | 'left-right'
+}
+
+// --- stepper ---
+export interface Step {
+    number: number
+    title: string
+    description: string
+    code_snippet?: string
+    note?: string
+}
+
+export interface StepperData {
+    steps: Step[]
+    orientation: 'vertical' | 'horizontal'
+}
+
+// --- table ---
+export interface TableData {
+    headers: string[]
+    rows: string[][]
+    caption?: string
+    highlight_col?: number
+}
+
+// --- mindmap ---
+export interface MindMapNode {
+    id: string
+    label: string
+    children?: MindMapNode[]
+}
+
+export interface MindMapData {
+    central_topic: string
+    branches: MindMapNode[]
+}
+
+// --- latex ---
+export interface LatexBlock {
+    expression: string
+    label?: string
+    annotation?: string
+}
+
+export interface LatexData {
+    blocks: LatexBlock[]
+    context?: string
+}
+
+// --- plotter ---
+export interface PlotFunction {
+    expression: string
+    label: string
+    color?: string
+}
+
+export interface PlotterData {
+    functions: PlotFunction[]
+    x_range: [number, number]
+    y_range?: [number, number]
+    x_label?: string
+    y_label?: string
+}
+
+// --- analogy ---
+export interface AnalogyPanel {
+    concept: string
+    metaphor: string
+    points: string[]
+}
+
+export interface AnalogyData {
+    left: AnalogyPanel
+    right: AnalogyPanel
+    connection_label: string
+}
+
+// --- code ---
+export interface CodeData {
+    language: string
+    code: string
+    highlight_lines?: number[]
+    caption?: string
+}
+
+// --- quiz ---
+export interface QuizOption {
+    label: string
+    text: string
+}
+
+export interface QuizData {
+    question: string
+    options: QuizOption[]
+    correct_index: number
+    explanation: string
+}
+
+// --- venn ---
+export interface VennSet {
+    label: string
+    items: string[]
+}
+
+export interface VennData {
+    sets: VennSet[]
+    overlaps: string[][]
+    caption?: string
+}
+
+// --- array_trace ---
+export interface ArrayStep {
+    label: string
+    cells: string[]
+    highlighted?: number[]
+    pointers?: Record<string, number>
+}
+
+export interface ArrayTraceData {
+    steps: ArrayStep[]
+    caption?: string
+}
+
+// --- quadrant ---
+export interface QuadrantItem {
+    label: string
+    x: number
+    y: number
+}
+
+export interface QuadrantData {
+    x_label: string
+    y_label: string
+    quadrant_labels: [string, string, string, string]
+    items: QuadrantItem[]
+}
+
+// --- heatmap ---
+export interface HeatmapData {
+    row_labels: string[]
+    col_labels: string[]
+    values: number[][]
+    scale_label?: string
+}
+
+// --- geometry ---
+export interface GeometryShape {
+    shape_type: 'circle' | 'rect' | 'line' | 'polygon' | 'vector' | 'point'
+    label?: string
+    coords: number[]
+    color?: string
+    dashed?: boolean
+}
+
+export interface GeometryData {
+    shapes: GeometryShape[]
+    show_axes?: boolean
+    viewbox?: [number, number, number, number]
+}
+
 // --- the union type the LLM outputs ---
 export type VizSpec =
     | { type: 'flowchart'; data: { nodes: FlowNode[]; edges: FlowEdge[] } }
     | { type: 'chart'; data: ChartData }
     | { type: 'network'; data: NetworkData }
     | { type: 'mermaid'; data: { syntax: string } }
+    | { type: 'timeline'; data: TimelineData }
+    | { type: 'tree'; data: TreeData }
+    | { type: 'stepper'; data: StepperData }
+    | { type: 'table'; data: TableData }
+    | { type: 'mindmap'; data: MindMapData }
+    | { type: 'latex'; data: LatexData }
+    | { type: 'plotter'; data: PlotterData }
+    | { type: 'analogy'; data: AnalogyData }
+    | { type: 'code'; data: CodeData }
+    | { type: 'quiz'; data: QuizData }
+    | { type: 'venn'; data: VennData }
+    | { type: 'array_trace'; data: ArrayTraceData }
+    | { type: 'quadrant'; data: QuadrantData }
+    | { type: 'heatmap'; data: HeatmapData }
+    | { type: 'geometry'; data: GeometryData }
 
 // --- what the parser returns ---
 export interface ParsedLLMResponse {

@@ -8,7 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 from typing import Optional
 
 from fastapi.middleware.cors import CORSMiddleware
-from app.prompts.prompts import TUTOR_PROMPT, TUTOR_CONTEXT, GREETING_PROMPT
+from app.prompts.prompts import TUTOR_PROMPT, TUTOR_CONTEXT, WELCOME_SYSTEM_PROMPT, WELCOME_USER_CONTEXT
 import time
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
@@ -118,6 +118,7 @@ async def conversation_ws_handler(
         content_json = syllabus_data.get("content_json", {})
         if isinstance(content_json, dict):
             subject = content_json.get("subject", content_json.get("metadata", {}).get("subject", "General"))
+            grade_level = content_json.get("grade_level", content_json.get("metadata", {}).get("grade_level", "intermediate"))
 
     TURN_COUNTER = 0
 
@@ -129,23 +130,28 @@ async def conversation_ws_handler(
 
         # ── AI Greeting (speaks first) ───────────────────────────────────────
         try:
-            greeting_prompt = GREETING_PROMPT.format(
+            greeting_user_ctx = WELCOME_USER_CONTEXT.format(
+                USER_NAME=user_name,
                 SUBJECT=subject,
                 TOPIC=syllabus_title,
                 GRADE_LEVEL=grade_level,
-                CONVERSATION_SYLLABUS=CONVERSATION_SYLLABUS
+                CONVERSATION_SYLLABUS=CONVERSATION_SYLLABUS,
+                SESSION_MEMORY=SESSION_MEMORY
             )
-            greeting_text = await conv_service.generate_response(greeting_prompt)
-            print(f"[Maestro] Greeting: {greeting_text[:80]}...")
+            greeting_stream = conv_service.stream_response(
+                prompt=greeting_user_ctx,
+                system_prompt=WELCOME_SYSTEM_PROMPT
+            )
 
-            # Stream greeting audio
-            async for _, audio_chunk in tts_service.stream_speech(to_async_iterator([greeting_text])):
+            greeting_text = ""
+            greeting_start = time.perf_counter()
+            async for chunk_text, audio_chunk in tts_service.stream_speech(greeting_stream):
+                greeting_text = chunk_text
                 await websocket.send_bytes(audio_chunk)
 
+            print(f"[Maestro] Greeting delivered in {time.perf_counter() - greeting_start:.4f}s: {greeting_text[:80]}...")
             messages.append({"role": "agent", "input": greeting_text})
-
             await websocket.send_json({"type": "greeting_complete", "data": greeting_text})
-            print("[Maestro] Greeting delivered")
         except WebSocketDisconnect:
             print("[Maestro] Client disconnected during greeting")
             return
