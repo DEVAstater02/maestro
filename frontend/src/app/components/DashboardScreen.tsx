@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ThemeToggle } from "./ThemeToggle";
 
 interface SyllabusInfo {
   id: string;
@@ -55,7 +54,6 @@ export default function DashboardScreen({
               Hi, <span className="font-medium text-[var(--color-text)]">{userName}</span>
             </span>
           )}
-          <ThemeToggle />
           <button
             onClick={onSignOut}
             className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors border border-[var(--color-border)] rounded-full px-3 py-1"

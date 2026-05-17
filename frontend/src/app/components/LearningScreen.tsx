@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import EducationalCard, { type StructuredVis } from "./EducationalCard";
-import { ThemeToggle } from "./ThemeToggle";
+import SyllabusPanel from "./SyllabusPanel";
 import VoiceOrb from "./VoiceOrb";
 import {
   decodeAudioForPlayback,
@@ -33,10 +33,12 @@ interface CardEntry {
 export default function LearningScreen({
   syllabusId,
   syllabusTitle,
+  contentJson,
   onHome,
 }: {
   syllabusId?: string;
   syllabusTitle?: string;
+  contentJson?: Record<string, unknown> | null;
   onHome: () => void;
 }) {
   const [status, setStatus] = useState("Connecting...");
@@ -51,6 +53,12 @@ export default function LearningScreen({
   const [messages, setMessages] = useState<Message[]>([]);
   const [showTranscript, setShowTranscript] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+
+  /* ─── Syllabus panel ─── */
+  const contentNodes = (contentJson?.content_nodes as { title: string; concept?: string }[]) ?? [];
+  const [currentNodeIndex, setCurrentNodeIndex] = useState(0);
+  const [isSessionComplete, setIsSessionComplete] = useState(false);
+  const [showSyllabus, setShowSyllabus] = useState(false);
 
   useEffect(() => {
     if (transcriptEndRef.current) {
@@ -185,6 +193,13 @@ export default function LearningScreen({
           const msg = JSON.parse(event.data);
           if (msg.type === "audio_format") {
             audioFormatRef.current = msg.data;
+          } else if (msg.type === "session_state") {
+            setCurrentNodeIndex(msg.current_node_index ?? 0);
+            setIsSessionComplete(msg.is_completed ?? false);
+          } else if (msg.type === "node_advance") {
+            setCurrentNodeIndex(msg.index ?? 0);
+          } else if (msg.type === "course_complete") {
+            setIsSessionComplete(true);
           } else if (msg.type === "visualisation" && msg.data) {
             handleVisualisation(msg);
           } else if (msg.type === "transcription" && msg.data) {
@@ -359,11 +374,23 @@ export default function LearningScreen({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          {contentNodes.length > 0 && (
+            <button
+              onClick={() => setShowSyllabus(v => !v)}
+              className={`flex items-center px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider border rounded-full transition-all focus:outline-none ${
+                showSyllabus
+                  ? "bg-[var(--color-surface-alt)] text-[var(--color-text)] border-[var(--color-border)] hover:bg-[var(--color-border)]"
+                  : "bg-transparent text-[var(--color-text-muted)] border-[var(--color-border-subtle)] hover:border-[var(--color-text)] hover:text-[var(--color-text)]"
+              }`}
+            >
+              {showSyllabus ? "Hide Syllabus" : "Syllabus"}
+            </button>
+          )}
           <button
             onClick={() => setShowTranscript(v => !v)}
             className={`flex items-center px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider border rounded-full transition-all focus:outline-none ${
-                showTranscript 
-                  ? "bg-[var(--color-surface-alt)] text-[var(--color-text)] border-[var(--color-border)] hover:bg-[var(--color-border)]" 
+                showTranscript
+                  ? "bg-[var(--color-surface-alt)] text-[var(--color-text)] border-[var(--color-border)] hover:bg-[var(--color-border)]"
                   : "bg-transparent text-[var(--color-text-muted)] border-[var(--color-border-subtle)] hover:border-[var(--color-text)] hover:text-[var(--color-text)]"
             }`}
           >
@@ -378,17 +405,35 @@ export default function LearningScreen({
               <RefreshCw className="w-3 h-3" /> Reconnect
             </button>
           )}
-          <ThemeToggle />
         </div>
       </header>
 
       {/* ─── Main Content & Split Panel ─── */}
       <main className="flex-1 overflow-hidden relative flex">
-        
-        {/* Left/Center Visual Content (Flexible Width) */}
-        <div 
-          className="relative h-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden"
-          style={{ width: showTranscript ? '75%' : '100%' }}
+
+        {/* ─── Left Sidebar: Syllabus Panel ─── */}
+        <AnimatePresence>
+          {showSyllabus && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "25%", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="h-full shrink-0 overflow-hidden z-40"
+            >
+              <SyllabusPanel
+                nodes={contentNodes}
+                currentIndex={currentNodeIndex}
+                isCompleted={isSessionComplete}
+                syllabusTitle={syllabusTitle}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Center Visual Content (Flexible Width) */}
+        <div
+          className="relative h-full transition-[width] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden flex-1"
         >
           <AnimatePresence mode="wait">
             {visualMode === "orb" ? (
@@ -431,7 +476,7 @@ export default function LearningScreen({
                         {[0, 1, 2].map((i) => (
                           <motion.span
                             key={i}
-                            className="w-1.5 h-1.5 rounded-full bg-teal-400"
+                            className="w-1.5 h-1.5 rounded-full bg-amber-400"
                             animate={{ opacity: [0.3, 1, 0.3] }}
                             transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
                           />

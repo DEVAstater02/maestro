@@ -20,6 +20,9 @@ import ArrayTrace from '../ArrayTrace'
 import Quadrant from '../Quadrant'
 import Heatmap from '../Heatmap'
 import Geometry from '../Geometry'
+import StackTrace from '../StackTrace'
+import TruthTable from '../TruthTable'
+import NumberLine from '../NumberLine'
 
 interface VizRendererProps {
     spec: VizSpec
@@ -86,6 +89,15 @@ export default function VizRenderer({ spec, id }: VizRendererProps) {
 
         case 'geometry':
             return <Geometry data={spec.data} />
+
+        case 'stack_trace':
+            return <StackTrace data={spec.data} />
+
+        case 'truth_table':
+            return <TruthTable data={spec.data} />
+
+        case 'number_line':
+            return <NumberLine data={spec.data} />
 
         default:
             return null

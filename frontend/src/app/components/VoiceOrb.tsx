@@ -73,10 +73,10 @@ export default function VoiceOrb({ analyserNode, state, size = 340 }: VoiceOrbPr
         currentState === "speaking"  ? 0.45 + amp * 0.5 :
         currentState === "recording" ? 0.32 + amp * 0.4 : 0.12;
       const glowGrad = ctx.createRadialGradient(cx, cy, baseRadius * 0.3, cx, cy, glowR);
-      glowGrad.addColorStop(0,    `rgba(50, 220, 160, ${glowAlpha})`);
-      glowGrad.addColorStop(0.45, `rgba(10, 160, 100, ${glowAlpha * 0.35})`);
-      glowGrad.addColorStop(0.75, `rgba(0,   90,  60, ${glowAlpha * 0.1})`);
-      glowGrad.addColorStop(1,    `rgba(0,   40,  25, 0)`);
+      glowGrad.addColorStop(0,    `rgba(245, 158,  11, ${glowAlpha})`);
+      glowGrad.addColorStop(0.45, `rgba(180, 100,   5, ${glowAlpha * 0.35})`);
+      glowGrad.addColorStop(0.75, `rgba(100,  50,   0, ${glowAlpha * 0.1})`);
+      glowGrad.addColorStop(1,    `rgba( 40,  15,   0, 0)`);
       ctx.beginPath();
       ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
       ctx.fillStyle = glowGrad;
@@ -118,11 +118,11 @@ export default function VoiceOrb({ analyserNode, state, size = 340 }: VoiceOrbPr
       const ly = cy - baseRadius * 0.28;
       const b = amp * 0.22;
       const grad = ctx.createRadialGradient(lx, ly, 0, cx, cy, baseRadius * 1.15);
-      grad.addColorStop(0,    `rgba(${210 + b * 10}, 255,             ${240 + b * 5}, 1)`);
-      grad.addColorStop(0.22, `rgba(${60  + b * 8},  ${220 + b * 10}, ${170 + b * 5}, 1)`);
-      grad.addColorStop(0.48, `rgba(${10  + b * 5},  ${155 + b * 8},  ${100 + b * 4}, 1)`);
-      grad.addColorStop(0.72, `rgba(0,               ${75  + b * 5},  ${50  + b * 3}, 1)`);
-      grad.addColorStop(1,    `rgba(0,               15,              10,             1)`);
+      grad.addColorStop(0,    `rgba(255,               ${225 + b * 8},  ${140 + b * 5}, 1)`);
+      grad.addColorStop(0.22, `rgba(${230 + b * 8},   ${140 + b * 8},  ${15  + b * 3}, 1)`);
+      grad.addColorStop(0.48, `rgba(${165 + b * 5},   ${75  + b * 5},  0,              1)`);
+      grad.addColorStop(0.72, `rgba(${85  + b * 3},   ${35  + b * 3},  0,              1)`);
+      grad.addColorStop(1,    `rgba(20,               8,               0,              1)`);
       ctx.fillStyle = grad;
       ctx.fill();
 
@@ -174,7 +174,7 @@ export default function VoiceOrb({ analyserNode, state, size = 340 }: VoiceOrbPr
         ctx.quadraticCurveTo(pts[i][0], pts[i][1], xc, yc);
       }
       ctx.closePath();
-      ctx.strokeStyle = `rgba(150,255,210,${0.22 + amp * 0.18})`;
+      ctx.strokeStyle = `rgba(255,200,80,${0.22 + amp * 0.18})`;
       ctx.lineWidth = 1.5;
       ctx.stroke();
 

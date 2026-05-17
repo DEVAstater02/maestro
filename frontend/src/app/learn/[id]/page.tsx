@@ -8,6 +8,7 @@ export default function LearnPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [syllabusTitle, setSyllabusTitle] = useState<string>("");
+  const [contentJson, setContentJson] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,7 @@ export default function LearnPage() {
       })
       .then((data) => {
         setSyllabusTitle(data.title || "Untitled");
+        setContentJson(data.content_json ?? null);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -63,6 +65,7 @@ export default function LearnPage() {
     <LearningScreen
       syllabusId={id}
       syllabusTitle={syllabusTitle}
+      contentJson={contentJson}
       onHome={() => router.push("/")}
     />
   );

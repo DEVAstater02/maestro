@@ -3,6 +3,7 @@ from app.models.viz_models import (
     TimelineViz, TreeViz, StepperViz, TableViz, MindMapViz,
     LatexViz, PlotterViz, AnalogyViz, CodeViz,
     QuizViz, VennViz, ArrayTraceViz, QuadrantViz, HeatmapViz, GeometryViz,
+    StackTraceViz, TruthTableViz, NumberLineViz,
 )
 from app.prompts.visualiser import (
     FLOWCHART_GENERATOR_PROMPT,
@@ -24,6 +25,9 @@ from app.prompts.visualiser import (
     QUADRANT_GENERATOR_PROMPT,
     HEATMAP_GENERATOR_PROMPT,
     GEOMETRY_GENERATOR_PROMPT,
+    STACK_TRACE_GENERATOR_PROMPT,
+    TRUTH_TABLE_GENERATOR_PROMPT,
+    NUMBER_LINE_GENERATOR_PROMPT,
 )
 
 VIZ_REGISTRY = {
@@ -121,5 +125,20 @@ VIZ_REGISTRY = {
         "description": "Labeled geometric shapes, vectors, or coordinate constructions — geometry, physics, trigonometry",
         "schema": GeometryViz,
         "system_prompt": GEOMETRY_GENERATOR_PROMPT,
+    },
+    "stack_trace": {
+        "description": "Step-by-step push/pop on a stack, or enqueue/dequeue on a queue — LIFO/FIFO data structures",
+        "schema": StackTraceViz,
+        "system_prompt": STACK_TRACE_GENERATOR_PROMPT,
+    },
+    "truth_table": {
+        "description": "Boolean truth table for logic gates, AND/OR/NOT/XOR expressions, or propositional logic",
+        "schema": TruthTableViz,
+        "system_prompt": TRUTH_TABLE_GENERATOR_PROMPT,
+    },
+    "number_line": {
+        "description": "Number line with marked points, open/closed dots, and shaded ranges — inequalities, fractions, integers",
+        "schema": NumberLineViz,
+        "system_prompt": NUMBER_LINE_GENERATOR_PROMPT,
     },
 }

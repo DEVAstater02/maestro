@@ -21,12 +21,15 @@ class UserRecord:
     learning_style: str = "Direct"
     reasoning_speed: str = "Moderate"
     analogy_pool: Optional[Any] = None  # JSON
-    knowledge_map: Any = field(default_factory=dict)  # JSON
     last_updated: Optional[datetime] = None
     created_at: Optional[datetime] = None
     dob: Optional[datetime] = None
     grade: Optional[str] = None
     interests: Optional[str] = None
+    persona_notes: Optional[str] = None
+    # Populated from user_knowledge table at session init — not columns on users
+    prior_knowledge: dict = field(default_factory=dict)      # {subject_str: score 0-50}
+    completed_courses: dict = field(default_factory=dict)    # {syllabus_id: (label, score 0-100)}
 
 
 @dataclass

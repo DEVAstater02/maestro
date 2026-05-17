@@ -82,7 +82,7 @@ class PersistenceRepository:
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, name, email, password_hash, learning_style, reasoning_speed, analogy_pool, knowledge_map, last_updated, created_at, dob, grade, interests FROM users WHERE id = %s",
+                    "SELECT id, name, email, password_hash, learning_style, reasoning_speed, analogy_pool, last_updated, created_at, dob, grade, interests, persona_notes FROM users WHERE id = %s",
                     (user_id,)
                 )
                 row = cur.fetchone()
@@ -90,10 +90,6 @@ class PersistenceRepository:
                     analogy_pool = row['analogy_pool']
                     if isinstance(analogy_pool, str):
                         analogy_pool = json.loads(analogy_pool)
-                    
-                    knowledge_map = row['knowledge_map']
-                    if isinstance(knowledge_map, str):
-                        knowledge_map = json.loads(knowledge_map)
 
                     return UserRecord(
                         id=row['id'],
@@ -103,12 +99,12 @@ class PersistenceRepository:
                         learning_style=row['learning_style'],
                         reasoning_speed=row['reasoning_speed'],
                         analogy_pool=analogy_pool,
-                        knowledge_map=knowledge_map,
                         last_updated=row['last_updated'],
                         created_at=row['created_at'],
                         dob=row['dob'],
                         grade=row['grade'],
-                        interests=row['interests']
+                        interests=row['interests'],
+                        persona_notes=row.get('persona_notes'),
                     )
                 return None
         except Exception as e:
@@ -230,14 +226,16 @@ class PersistenceRepository:
         """Fetch the most recent session for a user and syllabus."""
         if user_id is None:
             user_id = ANONYMOUS_USER_ID
-        
+
         conn = get_connection()
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT id, user_id, syllabus_id, session_memory_string 
-                    FROM sessions 
+                    SELECT id, user_id, syllabus_id, session_memory_string,
+                           current_chapter_index, is_completed,
+                           started_at, total_seconds
+                    FROM sessions
                     WHERE user_id = %s AND syllabus_id = %s
                     ORDER BY updated_at DESC LIMIT 1
                     """,
@@ -249,11 +247,51 @@ class PersistenceRepository:
                         "id": row['id'],
                         "user_id": row['user_id'],
                         "syllabus_id": row['syllabus_id'],
-                        "session_memory_string": row['session_memory_string']
+                        "session_memory_string": row['session_memory_string'],
+                        "current_chapter_index": row['current_chapter_index'] or 0,
+                        "is_completed": bool(row['is_completed']),
+                        "started_at": row['started_at'],
+                        "total_seconds": row['total_seconds'] or 0,
                     }
                 return None
         except Exception as e:
             print(f"[PersistenceRepo] ERROR getting latest session: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def mark_session_complete(self, session_id: str) -> None:
+        """Set is_completed = TRUE for the given session."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE sessions SET is_completed = TRUE WHERE id = %s",
+                    (session_id,),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] Session {session_id} marked complete")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR marking session complete: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def update_chapter_index(self, session_id: str, index: int) -> None:
+        """Update current_chapter_index for the given session."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE sessions SET current_chapter_index = %s WHERE id = %s",
+                    (index, session_id),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] chapter_index → {index} for session {session_id}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR updating chapter_index: {e}")
             raise
         finally:
             conn.close()
@@ -270,6 +308,7 @@ class PersistenceRepository:
         dob: Optional[str] = None,
         grade: Optional[str] = None,
         interests: Optional[str] = None,
+        learning_style: Optional[str] = None,
     ) -> str:
         """
         Insert a new user with real credentials.
@@ -281,10 +320,10 @@ class PersistenceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO users (id, name, email, password_hash, dob, grade, interests)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO users (id, name, email, password_hash, dob, grade, interests, learning_style)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (user_id, name, email, password_hash, dob, grade, interests),
+                    (user_id, name, email, password_hash, dob, grade, interests, learning_style or "Direct"),
                 )
             conn.commit()
             print(f"[PersistenceRepo] User created: {user_id} ({email})")
@@ -303,7 +342,7 @@ class PersistenceRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT id, name, email, password_hash, learning_style, reasoning_speed, "
-                    "analogy_pool, knowledge_map, last_updated, created_at, dob, grade, interests "
+                    "analogy_pool, last_updated, created_at, dob, grade, interests, persona_notes "
                     "FROM users WHERE email = %s",
                     (email,),
                 )
@@ -315,10 +354,6 @@ class PersistenceRepository:
                 if isinstance(analogy_pool, str):
                     analogy_pool = json.loads(analogy_pool)
 
-                knowledge_map = row['knowledge_map']
-                if isinstance(knowledge_map, str):
-                    knowledge_map = json.loads(knowledge_map)
-
                 return UserRecord(
                     id=row['id'],
                     name=row['name'],
@@ -327,12 +362,12 @@ class PersistenceRepository:
                     learning_style=row['learning_style'],
                     reasoning_speed=row['reasoning_speed'],
                     analogy_pool=analogy_pool,
-                    knowledge_map=knowledge_map,
                     last_updated=row['last_updated'],
                     created_at=row['created_at'],
                     dob=row['dob'],
                     grade=row['grade'],
                     interests=row['interests'],
+                    persona_notes=row.get('persona_notes'),
                 )
         except Exception as e:
             print(f"[PersistenceRepo] ERROR getting user by email: {e}")
@@ -343,6 +378,53 @@ class PersistenceRepository:
     # ─────────────────────────────────────────────────────────────────────────
     # Memory persistence
     # ─────────────────────────────────────────────────────────────────────────
+
+    def update_session_costs(self, session_id: str, input_tokens: int, output_tokens: int, tts_chars: int) -> None:
+        """Accumulate LLM token counts and TTS character count for the session."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE sessions
+                       SET llm_input_tokens  = llm_input_tokens  + %s,
+                           llm_output_tokens = llm_output_tokens + %s,
+                           tts_chars         = tts_chars         + %s
+                     WHERE id = %s
+                    """,
+                    (input_tokens, output_tokens, tts_chars, session_id),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] costs +{input_tokens}in/{output_tokens}out tokens, +{tts_chars} tts_chars for {session_id}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR updating session costs: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def update_session_time(self, session_id: str, seconds_to_add: int) -> None:
+        """Add elapsed seconds to total_seconds; set started_at on first call."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE sessions
+                       SET total_seconds = total_seconds + %s,
+                           started_at = COALESCE(started_at, NOW())
+                     WHERE id = %s
+                    """,
+                    (seconds_to_add, session_id),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] +{seconds_to_add}s for session {session_id}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR updating session time: {e}")
+            raise
+        finally:
+            conn.close()
 
     def update_session_memory(self, session_id: str, memory_string: str) -> None:
         """Update the `session_memory_string` column for the given session."""
@@ -363,6 +445,93 @@ class PersistenceRepository:
             conn.rollback()
             print(f"[PersistenceRepo] ERROR updating session memory: {e}")
             raise
+        finally:
+            conn.close()
+
+    def update_persona_notes(self, user_id: str, notes: str) -> None:
+        """Update the persona_notes column for the given user."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE users SET persona_notes = %s WHERE id = %s",
+                    (notes, user_id),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] persona_notes updated for user {user_id}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR updating persona_notes: {e}")
+            raise
+        finally:
+            conn.close()
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # user_knowledge table
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def get_user_knowledge(self, user_id: str) -> dict:
+        """Return {"prior": {subject: score}, "completed": {syllabus_id: (label, score)}}."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT type, ref_id, label, score FROM user_knowledge WHERE user_id = %s",
+                    (user_id,)
+                )
+                rows = cur.fetchall()
+            result = {"prior": {}, "completed": {}}
+            for row in rows:
+                if row['type'] == 'prior':
+                    result["prior"][row['ref_id']] = row['score']
+                else:
+                    result["completed"][row['ref_id']] = (row['label'], row['score'])
+            return result
+        except Exception as e:
+            print(f"[PersistenceRepo] ERROR getting user_knowledge: {e}")
+            return {"prior": {}, "completed": {}}
+        finally:
+            conn.close()
+
+    def upsert_prior_knowledge(self, user_id: str, subject: str, score: int) -> None:
+        """Insert or overwrite a prior-knowledge row."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO user_knowledge (user_id, type, ref_id, score)
+                    VALUES (%s, 'prior', %s, %s)
+                    ON DUPLICATE KEY UPDATE score = VALUES(score)
+                    """,
+                    (user_id, subject, min(score, 50)),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] prior_knowledge upserted: {user_id} {subject}={score}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR upserting prior_knowledge: {e}")
+        finally:
+            conn.close()
+
+    def increment_completed_course(self, user_id: str, syllabus_id: str, label: str, delta: int) -> None:
+        """Atomically increment completed course score, capped at 100."""
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO user_knowledge (user_id, type, ref_id, label, score)
+                    VALUES (%s, 'completed', %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE score = LEAST(score + VALUES(score), 100)
+                    """,
+                    (user_id, syllabus_id, label, delta),
+                )
+            conn.commit()
+            print(f"[PersistenceRepo] completed_course incremented: {user_id} {syllabus_id} +{delta}")
+        except Exception as e:
+            conn.rollback()
+            print(f"[PersistenceRepo] ERROR incrementing completed_course: {e}")
         finally:
             conn.close()
 

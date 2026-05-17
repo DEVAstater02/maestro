@@ -31,13 +31,27 @@ class CurationService:
         user_record = self.persistence_repo.get_user(user_id)
         if not user_record:
             return "No existing profile data."
-        
-        user_profile_str = f"Name: {user_record.name}\n"
-        user_profile_str += f"Grade: {user_record.grade or 'Unknown'}\n"
-        user_profile_str += f"Learning Style: {user_record.learning_style}\n"
-        user_profile_str += f"Interests: {user_record.interests or 'Not specified'}\n"
-        user_profile_str += f"Reasoning Speed: {user_record.reasoning_speed}\n"
-        return user_profile_str
+
+        knowledge = self.persistence_repo.get_user_knowledge(user_id)
+
+        lines = [
+            f"Name: {user_record.name}",
+            f"Grade: {user_record.grade or 'Unknown'}",
+            f"Learning Style: {user_record.learning_style}",
+            f"Interests: {user_record.interests or 'Not specified'}",
+            f"Reasoning Speed: {user_record.reasoning_speed}",
+        ]
+        if knowledge["prior"]:
+            prior = ", ".join(f"{k} ({v}/50)" for k, v in knowledge["prior"].items())
+            lines.append(f"Prior subject familiarity: {prior}")
+        if knowledge["completed"]:
+            done_parts = []
+            for label, score in knowledge["completed"].values():
+                done_parts.append(f"{label} ({'mastered' if score >= 100 else str(score) + '%'})")
+            lines.append(f"Completed courses: {', '.join(done_parts)}")
+        if user_record.persona_notes:
+            lines.append(f"Behavioral notes: {user_record.persona_notes}")
+        return "\n".join(lines)
 
     async def generate_curation_question(self, topic: str, user_profile_str: str, subject: str, curation_history_text: str) -> str:
         formatted_user_prompt = CURATION_USER_CONTEXT.format(

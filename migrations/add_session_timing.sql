@@ -1,0 +1,6 @@
+ALTER TABLE sessions
+    ADD COLUMN started_at TIMESTAMP NULL DEFAULT NULL,
+    ADD COLUMN total_seconds INT NOT NULL DEFAULT 0,
+    ADD COLUMN llm_input_tokens INT NOT NULL DEFAULT 0,
+    ADD COLUMN llm_output_tokens INT NOT NULL DEFAULT 0,
+    ADD COLUMN tts_chars INT NOT NULL DEFAULT 0;

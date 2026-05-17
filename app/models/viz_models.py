@@ -382,13 +382,85 @@ class GeometryViz(BaseModel):
     data: GeometryData
 
 
+# ─── Stack Trace ───
+
+class StackOperation(BaseModel):
+    op: Literal['push', 'pop', 'peek', 'enqueue', 'dequeue', 'none']
+    value: Optional[str] = None
+
+
+class StackStep(BaseModel):
+    label: str                              # e.g. "push(5)"
+    stack: List[str]                        # current state, top = last element
+    operation: StackOperation
+    highlighted: Optional[int] = None      # 0-indexed element to highlight
+
+
+class StackTraceData(BaseModel):
+    steps: List[StackStep]
+    mode: Literal['stack', 'queue'] = 'stack'
+    caption: Optional[str] = None
+
+
+class StackTraceViz(BaseModel):
+    type: Literal['stack_trace']
+    data: StackTraceData
+
+
+# ─── Truth Table ───
+
+class TruthTableData(BaseModel):
+    variables: List[str]                    # input variable names e.g. ["A", "B"]
+    expressions: List[str]                  # output column names e.g. ["A AND B"]
+    rows: List[Dict[str, bool]]             # each row maps name → bool
+    highlight_col: Optional[str] = None     # expression name to highlight as primary output
+
+
+class TruthTableViz(BaseModel):
+    type: Literal['truth_table']
+    data: TruthTableData
+
+
+# ─── Number Line ───
+
+class NumberLineMarker(BaseModel):
+    value: float
+    label: str
+    color: Optional[str] = None
+    filled: Optional[bool] = True          # False = open circle (strict inequality)
+
+
+class NumberLineRange(BaseModel):
+    start: float
+    end: float
+    label: Optional[str] = None
+    color: Optional[str] = None
+    include_start: Optional[bool] = True
+    include_end: Optional[bool] = True
+
+
+class NumberLineData(BaseModel):
+    min: float
+    max: float
+    markers: Optional[List[NumberLineMarker]] = []
+    ranges: Optional[List[NumberLineRange]] = []
+    tick_interval: Optional[float] = None
+    label: Optional[str] = None            # axis label e.g. "x"
+
+
+class NumberLineViz(BaseModel):
+    type: Literal['number_line']
+    data: NumberLineData
+
+
 # ─── Union discriminator ───
 
 VizSpecModel = Annotated[
     Union[FlowchartViz, ChartViz, NetworkViz, MermaidViz,
           TimelineViz, TreeViz, StepperViz, TableViz, MindMapViz,
           LatexViz, PlotterViz, AnalogyViz, CodeViz,
-          QuizViz, VennViz, ArrayTraceViz, QuadrantViz, HeatmapViz, GeometryViz],
+          QuizViz, VennViz, ArrayTraceViz, QuadrantViz, HeatmapViz, GeometryViz,
+          StackTraceViz, TruthTableViz, NumberLineViz],
     Field(discriminator='type')
 ]
 
