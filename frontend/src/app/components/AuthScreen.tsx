@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ThemeToggle } from "./ThemeToggle";
 
 interface AuthScreenProps {
   onAuthenticated: (token: string, userId: string, name: string) => void;
@@ -22,6 +21,7 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [interests, setInterests] = useState("");
+  const [learningStyle, setLearningStyle] = useState("");
 
   const switchMode = (nextMode: Mode) => {
     setMode(nextMode);
@@ -41,7 +41,7 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
 
       const body =
         mode === "signup"
-          ? { email, password, name, grade: grade || undefined, interests: interests || undefined }
+          ? { email, password, name, grade: grade || undefined, interests: interests || undefined, learning_style: learningStyle || undefined }
           : { email, password };
 
       const res = await fetch(endpoint, {
@@ -72,10 +72,6 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
 
   return (
     <div className="auth-root">
-      <div className="absolute top-6 right-6 z-10">
-        <ThemeToggle />
-      </div>
-
       {/* ── Background orbs ── */}
       <div className="auth-orb auth-orb-1" />
       <div className="auth-orb auth-orb-2" />
@@ -191,6 +187,25 @@ export default function AuthScreen({ onAuthenticated }: AuthScreenProps) {
                 placeholder="e.g. Math, Robotics, History"
                 className="auth-input"
               />
+            </div>
+          )}
+
+          {/* Learning Style – signup only */}
+          {mode === "signup" && (
+            <div className="auth-field auth-field-animate">
+              <label htmlFor="auth-style" className="auth-label">How do you prefer to learn? <span className="auth-optional">(optional)</span></label>
+              <select
+                id="auth-style"
+                value={learningStyle}
+                onChange={e => setLearningStyle(e.target.value)}
+                className="auth-input"
+              >
+                <option value="">Select a style...</option>
+                <option value="Direct">Direct — just explain it clearly</option>
+                <option value="Socratic">Socratic — ask me questions, guide me</option>
+                <option value="Example-first">Example-first — show me before explaining</option>
+                <option value="Visual">Visual — use diagrams and analogies</option>
+              </select>
             </div>
           )}
 

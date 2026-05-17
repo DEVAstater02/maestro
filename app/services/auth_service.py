@@ -26,6 +26,7 @@ class AuthService:
             dob=body.dob,
             grade=body.grade,
             interests=body.interests,
+            learning_style=body.learning_style,
         )
 
         token = create_access_token(user_id=user_id, name=body.name)

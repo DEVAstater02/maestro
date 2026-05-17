@@ -40,5 +40,12 @@ Think through:
 
 Write your updated session memory inside <updated_session_memory> tags. The updated memory should be comprehensive and detailed, incorporating both the previous session memory and the new conversation messages. It should read as a cohesive narrative of the student's learning journey that captures the nuances and specifics of what has been taught and learned.
 
-Your final output should contain only the updated session memory within the specified tags - do not include the scratchpad in your final response.
+Your final output should contain two parts:
+
+1. The updated session memory inside <updated_session_memory> tags.
+2. A single progress line immediately after, in this exact format:
+   <progress>{"chapter_index": N}</progress>
+   where N is the zero-based index of the content node the student is currently working on,
+   inferred from what has been covered in the conversation. If uncertain, keep the current index.
+   Do not include any other text outside these two blocks.
 '''

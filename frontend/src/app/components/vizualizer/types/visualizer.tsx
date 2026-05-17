@@ -209,6 +209,59 @@ export interface GeometryData {
     viewbox?: [number, number, number, number]
 }
 
+// --- stack_trace ---
+export interface StackOperation {
+    op: 'push' | 'pop' | 'peek' | 'enqueue' | 'dequeue' | 'none'
+    value?: string
+}
+
+export interface StackStep {
+    label: string
+    stack: string[]
+    operation: StackOperation
+    highlighted?: number
+}
+
+export interface StackTraceData {
+    steps: StackStep[]
+    mode: 'stack' | 'queue'
+    caption?: string
+}
+
+// --- truth_table ---
+export interface TruthTableData {
+    variables: string[]
+    expressions: string[]
+    rows: Record<string, boolean>[]
+    highlight_col?: string
+}
+
+// --- number_line ---
+export interface NumberLineMarker {
+    value: number
+    label: string
+    color?: string
+    filled?: boolean
+}
+
+export interface NumberLineRange {
+    start: number
+    end: number
+    label?: string
+    color?: string
+    include_start?: boolean
+    include_end?: boolean
+}
+
+export interface NumberLineData {
+    min: number
+    max: number
+    markers?: NumberLineMarker[]
+    ranges?: NumberLineRange[]
+    tick_interval?: number
+    label?: string
+}
+
 // --- the union type the LLM outputs ---
 export type VizSpec =
     | { type: 'flowchart'; data: { nodes: FlowNode[]; edges: FlowEdge[] } }
@@ -230,6 +283,9 @@ export type VizSpec =
     | { type: 'quadrant'; data: QuadrantData }
     | { type: 'heatmap'; data: HeatmapData }
     | { type: 'geometry'; data: GeometryData }
+    | { type: 'stack_trace'; data: StackTraceData }
+    | { type: 'truth_table'; data: TruthTableData }
+    | { type: 'number_line'; data: NumberLineData }
 
 // --- what the parser returns ---
 export interface ParsedLLMResponse {

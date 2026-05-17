@@ -9,6 +9,7 @@ class SignupRequest(BaseModel):
     dob: Optional[str] = None      # ISO date string YYYY-MM-DD
     grade: Optional[str] = None
     interests: Optional[str] = None
+    learning_style: Optional[str] = None
 
 
 class SigninRequest(BaseModel):

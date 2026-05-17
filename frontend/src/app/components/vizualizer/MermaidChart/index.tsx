@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import mermaid from 'mermaid'
-import { useTheme } from 'next-themes'
 import PanZoomViewer from '../../PanZoomViewer'
 
 interface MermaidChartProps {
@@ -11,49 +10,35 @@ interface MermaidChartProps {
 }
 
 export default function MermaidChart({ syntax, diagramId }: MermaidChartProps) {
-    const { resolvedTheme } = useTheme()
     const [svgHtml, setSvgHtml] = useState<string | null>(null)
     const [error, setError] = useState(false)
     const renderedKey = useRef<string | null>(null)
 
     useEffect(() => {
-        const key = `${diagramId}-${resolvedTheme}`
-        if (renderedKey.current === key) return
-        renderedKey.current = key
+        if (renderedKey.current === diagramId) return
+        renderedKey.current = diagramId
         setSvgHtml(null)
         setError(false)
 
-        const isDark = resolvedTheme === 'dark'
         mermaid.initialize({
             startOnLoad: false,
-            theme: isDark ? 'dark' : 'default',
+            theme: 'dark',
             securityLevel: 'loose',
             suppressErrorRendering: true,
-            themeVariables: isDark
-                ? {
-                    primaryColor: '#1e293b',
-                    primaryTextColor: '#e2e8f0',
-                    primaryBorderColor: '#475569',
-                    lineColor: '#94a3b8',
-                    secondaryColor: '#141414',
-                    tertiaryColor: '#1a1a1a',
-                }
-                : {
-                    primaryColor: '#e0f2fe',
-                    primaryTextColor: '#0f172a',
-                    primaryBorderColor: '#94a3b8',
-                    lineColor: '#64748b',
-                    secondaryColor: '#f0fdf4',
-                    tertiaryColor: '#f8fafc',
-                    noteBkgColor: '#fefce8',
-                    noteTextColor: '#1e293b',
-                },
+            themeVariables: {
+                primaryColor: '#292524',
+                primaryTextColor: '#fafaf9',
+                primaryBorderColor: '#57534e',
+                lineColor: '#a8a29e',
+                secondaryColor: '#44403c',
+                tertiaryColor: '#1c1917',
+            },
         })
 
         mermaid.render(`mermaid-${diagramId}`, syntax)
             .then(({ svg }) => setSvgHtml(svg))
             .catch(() => setError(true))
-    }, [syntax, diagramId, resolvedTheme])
+    }, [syntax, diagramId])
 
     if (error) {
         return (

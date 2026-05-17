@@ -1,5 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from typing import Optional
+import asyncio
 import json
 import time
 import re
@@ -7,6 +8,7 @@ import os
 from app.services.stt_service import STTService
 from app.services.tts_service import TTSService
 from app.services.curation_service import CurationService
+from app.services.conversation_service import ConversationService
 
 USER_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -25,6 +27,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
     stt_service = STTService()
     tts_service = TTSService()
     curation_service = CurationService()
+    conv_service = ConversationService()
 
     # Resolve the user_id from the JWT token (or fall back to anonymous)
     from app.utils.auth_utils import decode_access_token
@@ -41,7 +44,6 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
     # State for curation
     curation_history = []
     topic = ""
-    user_persona = ""
     subject = ""
 
     try:
@@ -59,10 +61,9 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
             raise ValueError(f"Invalid JSON configuration message: {e}")
 
         topic = initial_msg.get("topic", "Unknown Topic")
-        user_persona = initial_msg.get("user_persona", "A student")
         subject = initial_msg.get("subject", "General")
-        
-        print(f"[Curation] Started for Topic: {topic}, Persona: {user_persona}")
+
+        print(f"[Curation] Started for Topic: {topic}, Subject: {subject}")
 
         # 2. Get the first curation question
         current_question = await curation_service.generate_curation_question(
@@ -97,14 +98,18 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                 await websocket.send_json({"type": "transcription", "data": transcribed_text})
                 
                 # Update history
-                curation_history.append(f"Tutor: {current_question}")
-                curation_history.append(f"Student: {transcribed_text}")
+                curation_history.append({"role": "assistant", "input": current_question})
+                curation_history.append({"role": "user", "input": transcribed_text})
                 
+                history_text = "\n".join(
+                    f"{'Tutor' if m['role'] == 'assistant' else 'Student'}: {m['input']}"
+                    for m in curation_history
+                )
                 llm_response = await curation_service.generate_curation_question(
                     topic=topic,
                     user_profile_str=user_profile_str,
                     subject=subject,
-                    curation_history_text="\n".join(curation_history)
+                    curation_history_text=history_text
                 )
                 
                 # Check for conclusion
@@ -116,7 +121,7 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                     # 4. Generate Final Syllabus
                     syllabus_json = await curation_service.generate_syllabus(
                         topic=topic,
-                        user_persona=user_persona,
+                        user_persona=user_profile_str,
                         subject=subject,
                         conclusion_text=conclusion_text
                     )
@@ -133,6 +138,11 @@ async def curation_ws_handler(websocket: WebSocket, token: Optional[str] = Query
                             )
                             # add the generated id to the payload
                             syllabus_json["_id"] = syllabus_id
+                            asyncio.create_task(conv_service.bootstrap_knowledge_map(
+                                user_id=user_id,
+                                messages=curation_history[:],
+                                subject=subject,
+                            ))
                         except Exception as e:
                             print(f"[Curation] Failed to store syllabus to DB: {e}")
                     

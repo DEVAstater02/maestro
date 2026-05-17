@@ -14,7 +14,6 @@ import DashboardScreen from "./components/DashboardScreen";
 
 type FlowState = "loading" | "auth" | "dashboard" | "splash" | "curation";
 
-import { ThemeToggle } from "./components/ThemeToggle";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Square, Sparkles, ArrowUp, Loader2 } from "lucide-react";
 
@@ -314,7 +313,6 @@ export default function App() {
                 Hi, <span className="text-[var(--color-text)]">{userName}</span>
               </span>
             )}
-            <ThemeToggle />
             <button
               id="sign-out-btn"
               onClick={handleSignOut}
@@ -373,8 +371,8 @@ export default function App() {
                   disabled={!topic}
                   className={`h-8 w-8 rounded-full flex items-center justify-center transition-all shrink-0 mr-1
                     ${topic 
-                      ? "bg-black text-white dark:bg-white dark:text-black" 
-                      : "bg-[#e5e5e5] text-white dark:bg-[#676767] dark:text-[#2f2f2f] cursor-not-allowed"
+                      ? "bg-amber-600 text-white hover:bg-amber-500"
+                      : "bg-[var(--color-surface-alt)] text-[var(--color-text-muted)] cursor-not-allowed"
                     }`}
                 >
                   <ArrowUp className="w-5 h-5" strokeWidth={2.5} />
@@ -415,7 +413,6 @@ export default function App() {
                 {userName}
               </span>
             )}
-            <ThemeToggle />
           </div>
         </header>
 
@@ -479,7 +476,7 @@ export default function App() {
                       {[0, 1, 2].map(i => (
                         <motion.span
                           key={i}
-                          className="w-1.5 h-1.5 rounded-full bg-teal-400"
+                          className="w-1.5 h-1.5 rounded-full bg-amber-400"
                           animate={{ opacity: [0.3, 1, 0.3] }}
                           transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
                         />

@@ -462,6 +462,95 @@ Also output alongside the viz:
   keyPoints?: [ { title, text } ]  (2–3 max)
 """.strip()
 
+STACK_TRACE_GENERATOR_PROMPT = """
+You are an expert educational illustrator. Generate a stack or queue trace visualisation
+for a student-tutor exchange about stack/queue data structures or LIFO/FIFO behaviour.
+
+Schema (output as structured JSON matching the StackTraceViz model):
+  type: "stack_trace"
+  data:
+    mode: "stack" | "queue"
+    steps: list of {
+      label: str            (human-readable op description, e.g. "push(42)")
+      stack: list[str]      (current elements as strings, top = last element)
+      operation: { op: "push"|"pop"|"peek"|"enqueue"|"dequeue"|"none", value?: str }
+      highlighted?: int     (0-indexed element to highlight, e.g. top after push)
+    }
+    caption?: str
+
+Rules:
+1. 4–10 steps showing meaningful state changes.
+2. For "stack" mode: top = last element in list. Push appends, pop removes last.
+3. For "queue" mode: front = first element. Enqueue appends, dequeue removes first.
+4. highlighted should point to the element just pushed/popped (index in stack list).
+5. Show initial state as step 0 with op "none".
+
+Also output alongside the viz:
+  title: short descriptive title
+  keyPoints?: [ { title, text } ]  (2–3 max)
+""".strip()
+
+TRUTH_TABLE_GENERATOR_PROMPT = """
+You are an expert educational illustrator. Generate a truth table visualisation for
+a student-tutor exchange about boolean logic, logic gates, or propositional logic.
+
+Schema (output as structured JSON matching the TruthTableViz model):
+  type: "truth_table"
+  data:
+    variables: list[str]        (input variable names, e.g. ["A", "B"])
+    expressions: list[str]      (output column names, e.g. ["A AND B", "NOT A"])
+    rows: list[dict]            (each maps every variable + expression name to a bool)
+    highlight_col?: str         (expression name to highlight as primary output)
+
+Rules:
+1. 1–3 input variables (2^n rows — max 8 rows for 3 vars).
+2. Every row must have keys for ALL variables and ALL expressions.
+3. Use standard boolean values (true/false), not 0/1.
+4. highlight_col should be the "main" result expression if there is one.
+5. Variable names: single uppercase letters (A, B, C). Expressions: human-readable.
+
+Also output alongside the viz:
+  title: short descriptive title
+  keyPoints?: [ { title, text } ]  (2–3 max)
+""".strip()
+
+NUMBER_LINE_GENERATOR_PROMPT = """
+You are an expert educational illustrator. Generate a number line visualisation for
+a student-tutor exchange about inequalities, fractions, integers, or ranges on a line.
+
+Schema (output as structured JSON matching the NumberLineViz model):
+  type: "number_line"
+  data:
+    min: float               (left bound of the visible number line)
+    max: float               (right bound)
+    markers?: list of {
+      value: float
+      label: str             (e.g. "x = 3", "1/2", "-2")
+      color?: str            (hex, e.g. "#4f46e5")
+      filled?: bool          (true = closed dot, false = open dot for strict inequality)
+    }
+    ranges?: list of {
+      start: float
+      end: float
+      label?: str
+      color?: str
+      include_start?: bool   (true = closed bracket, false = open paren)
+      include_end?: bool
+    }
+    tick_interval?: float    (spacing between tick marks — omit for auto)
+    label?: str              (axis variable label, e.g. "x")
+
+Rules:
+1. Keep min/max tight — show just enough context (don't use -100 to 100 for small examples).
+2. Use filled=false for strict inequalities (< or >), filled=true for <= or >=.
+3. Ranges and markers can coexist on the same number line.
+4. Max 5 markers, max 3 ranges.
+
+Also output alongside the viz:
+  title: short descriptive title
+  keyPoints?: [ { title, text } ]  (2–3 max)
+""".strip()
+
 # ── Shared user context template (reused for shot 2) ─────────────────────────
 
 VISUALISER_USER_CONTEXT = """
