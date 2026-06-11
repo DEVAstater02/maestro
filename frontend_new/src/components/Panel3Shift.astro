@@ -1,0 +1,73 @@
+---
+/**
+ * Panel 3 — The Structure
+ *
+ * The antidote to Panel 2. Same topics, completely different relationship.
+ * Syllabus with amber left-border and handwriting annotation callouts.
+ *
+ * Vertical budget: ~780px usable height.
+ * Heading: ~90px. Margin: ~24px. Syllabus (12 items × ~22px + gaps): ~340px.
+ * Total: ~454px — comfortably within viewport.
+ */
+
+const syllabusItems = [
+  { level: 'topic', text: '1. Foundations of Neural Networks',       annotation: null, mt: false },
+  { level: 'sub',   text: '1.1 Linear Algebra Refresher',            annotation: null, mt: false },
+  { level: 'sub',   text: '1.2 Gradient Descent & Backpropagation',  annotation: 'the thing you asked it to "just explain"', mt: false },
+  { level: 'topic', text: '2. Architectures',                        annotation: null, mt: true },
+  { level: 'sub',   text: '2.1 Convolutional Networks',              annotation: null, mt: false },
+  { level: 'sub',   text: '2.2 Recurrent Networks & LSTMs',          annotation: null, mt: false },
+  { level: 'topic', text: '3. Attention & Transformers',             annotation: null, mt: true },
+  { level: 'sub',   text: '3.1 Self-Attention Mechanism',            annotation: null, mt: false },
+  { level: 'sub',   text: '3.2 Building a Transformer from Scratch', annotation: 'the code you told it to "just write"', mt: false },
+  { level: 'topic', text: '4. Practical Implementation',             annotation: null, mt: true },
+  { level: 'sub',   text: '4.1 Training Loops & Debugging',          annotation: null, mt: false },
+  { level: 'sub',   text: '4.2 Evaluation & Deployment',             annotation: null, mt: false },
+];
+---
+
+<section class="panel" role="region" aria-label="From chaos to structure">
+  <span class="section-label">The Structure</span>
+  <div class="flex flex-col items-start justify-center h-full w-full px-[8%] md:px-[12%] max-w-[820px]">
+
+    <!-- Heading -->
+    <h2
+      class="font-serif text-[26px] md:text-[40px] text-text-primary leading-[1.2] mb-8 md:mb-10 max-w-[600px]"
+      data-annotation-word="understanding"
+      data-annotation-style="underline"
+    >
+      Maestro doesn't give you answers. It builds your understanding.
+    </h2>
+
+    <!-- Syllabus with amber margin line -->
+    <div class="relative pl-6 md:pl-8 w-full mt-6">
+      <!-- Amber margin line (notebook style, fitted neatly via absolute bounds) -->
+      <div class="absolute left-0 top-1 bottom-1 w-[2px] bg-accent-primary rounded-full opacity-60"></div>
+
+      <div id="syllabus-list" class="flex flex-col gap-[6px]">
+        {syllabusItems.map((item) => (
+          <div
+            class={`syllabus-item flex flex-col md:flex-row md:items-baseline gap-1 md:gap-3 relative ${item.level === 'sub' ? 'pl-6' : ''} ${item.mt ? 'mt-4' : ''}`}
+            data-topic={item.text.toLowerCase()}
+          >
+            <span class={
+              item.level === 'topic'
+                ? 'font-sans text-[17px] md:text-[19px] font-bold text-text-primary tracking-tight'
+                : 'font-sans text-[15px] md:text-[16px] text-text-secondary'
+            }>
+              {item.text}
+            </span>
+            {item.annotation && (
+              <span
+                class="annotation-marker font-hand text-[16px] md:text-[18px] text-accent-primary opacity-0 whitespace-nowrap"
+                style="transform: translateY(2px);"
+              >
+                <span class="hidden md:inline">←</span><span class="inline md:hidden">↳</span> {item.annotation}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,729 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Panel1Hook from '../components/Panel1Hook.astro';
+import Panel2Problem from '../components/Panel2Problem.astro';
+import Panel3Shift from '../components/Panel3Shift.astro';
+import Panel4Lesson from '../components/Panel4Lesson.astro';
+import Panel5Visual from '../components/Panel5Visual.astro';
+import Panel6Philosophy from '../components/Panel6Philosophy.astro';
+import Panel7Social from '../components/Panel7Social.astro';
+import Panel8CTA from '../components/Panel8CTA.astro';
+---
+<Layout>
+  <div id="scroll-container">
+    <Panel1Hook />
+    <Panel2Problem />
+    <Panel3Shift />
+    <Panel4Lesson />
+    <Panel5Visual />
+    <Panel6Philosophy />
+    <Panel7Social />
+    <Panel8CTA />
+  </div>
+
+  <script>
+    import {
+      createWaveformVisualizer,
+      createAnnotationHighlight,
+      createScrollOrganizer,
+      createDiagramDrawer,
+    } from 'maestro-effects';
+
+    const cleanups: Array<() => void> = [];
+    const mobileMedia = window.matchMedia('(max-width: 767px)');
+
+    // --- State variables ---
+    let organizerCleanup: any = null;
+    const annotationMarkers = document.querySelectorAll<HTMLElement>('.annotation-marker');
+
+    function init() {
+      const container = document.getElementById('scroll-container');
+      if (!container) return;
+
+      setupResponsivePanels(container);
+      setupWaveforms();
+      setupAnnotations();
+      setupTestimonials();
+      setupPanel4Diagram();
+    }
+
+    // --- Panel Initialization Logic ---
+
+    function setupResponsivePanels(container: HTMLElement) {
+      if (mobileMedia.matches) {
+        setupMobilePanels();
+        container.style.overflow = 'visible';
+        return;
+      }
+
+      setupHorizontalScroll(container);
+      container.style.overflow = 'visible';
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Custom horizontal scroll controller with Panel 2 "sticky chat" behaviour
+    //
+    // Scroll budget per section (in viewport-widths):
+    //   Panel 0→1 :  1 vw   (normal panel transition)
+    //   Panel 1 hold:  CHAT_PAGES vw  (panel 2 fully visible, chat scrolls vertically)
+    //   Panel 1→2 :  1 vw   (normal)
+    //   … rest are normal 1 vw each
+    //
+    // So the total spacer height = (panelCount + CHAT_PAGES) * vw
+    // The "adjusted scroll" maps raw scrollY into a logical 0…panelCount*vw space.
+    // ─────────────────────────────────────────────────────────────────────────
+    const CHAT_PAGES = 2;          // extra scroll pages devoted to panel-2 chat animation
+    const PANEL2_INDEX = 1;        // 0-based index of the panel that gets the sticky zone
+    const LERP_FACTOR = 0.06;
+    const SNAP_THRESHOLD = 0.4;
+
+    function setupHorizontalScroll(container: HTMLElement) {
+      const panels = Array.from(container.querySelectorAll<HTMLElement>('.panel'));
+      const panelCount = panels.length;
+      if (panelCount === 0) return;
+
+      // ── layout helpers ───────────────────────────────────────────────────
+      const header = document.querySelector<HTMLElement>('header, [data-maestro-header]');
+      const footer = document.querySelector<HTMLElement>('footer, [data-maestro-footer]');
+
+      function measureLayout() {
+        const headerH = header ? header.getBoundingClientRect().height : 0;
+        const footerH = footer ? footer.getBoundingClientRect().height : 0;
+        document.documentElement.style.setProperty('--maestro-header-h', `${headerH}px`);
+        document.documentElement.style.setProperty('--maestro-footer-h', `${footerH}px`);
+      }
+
+      // ── spacer (virtual scroll area) ─────────────────────────────────────
+      const spacer = document.createElement('div');
+      spacer.style.cssText = 'width:1px;pointer-events:none;';
+      document.body.appendChild(spacer);
+
+      let cachedVw = window.innerWidth;
+
+      function resizeSpacer() {
+        cachedVw = window.innerWidth;
+        const maxRawScroll = (panelCount + CHAT_PAGES - 1) * cachedVw;
+        spacer.style.height = `${maxRawScroll + window.innerHeight}px`;
+      }
+
+      // ── container styling ─────────────────────────────────────────────────
+      function applyContainerStyles() {
+        measureLayout();
+        container.style.position = 'fixed';
+        container.style.top = 'var(--maestro-header-h, 0px)';
+        container.style.left = '0';
+        container.style.width = '100%';
+        container.style.height = `calc(100vh - var(--maestro-header-h, 0px) - var(--maestro-footer-h, 0px))`;
+        container.style.overflow = 'hidden';
+        container.style.display = 'flex';
+        container.style.flexWrap = 'nowrap';
+      }
+
+      applyContainerStyles();
+      resizeSpacer();
+
+      // ── scroll state ──────────────────────────────────────────────────────
+      let currentScroll = 0;
+      let animId = 0;
+      let disposed = false;
+
+      // Convert raw scrollY → logical horizontal scroll position (0…(panelCount-1)*vw)
+      function rawToLogical(raw: number): number {
+        const vw = cachedVw;
+        const stickyStart = PANEL2_INDEX * vw;
+        const stickyEnd   = stickyStart + CHAT_PAGES * vw;
+        if (raw <= stickyStart) return raw;
+        if (raw <= stickyEnd)   return stickyStart;          // held at panel 2
+        return raw - CHAT_PAGES * vw;                        // resume after sticky zone
+      }
+
+      // Chat progress: 0 → 1 across the sticky zone
+      function chatProgress(raw: number): number {
+        const vw = cachedVw;
+        const stickyStart = PANEL2_INDEX * vw;
+        const stickyEnd   = stickyStart + CHAT_PAGES * vw;
+        return clamp((raw - stickyStart) / (stickyEnd - stickyStart), 0, 1);
+      }
+
+      // ── tick ──────────────────────────────────────────────────────────────
+      function tick() {
+        if (disposed) return;
+
+        currentScroll = window.scrollY;
+
+        // Apply translateX from logical position
+        const logical = rawToLogical(currentScroll);
+        container.style.transform = `translateX(${-logical}px)`;
+
+        // Fire panel progress callbacks
+        const vw = cachedVw;
+        const logicalPanelIndex = clamp(Math.floor(logical / vw), 0, panelCount - 1);
+        const localProgress = clamp((logical / vw) - logicalPanelIndex, 0, 1);
+
+        animatePanel2(chatProgress(currentScroll));
+        animatePanel3(logicalPanelIndex, localProgress);
+
+        animId = requestAnimationFrame(tick);
+      }
+
+      window.addEventListener('resize', () => { resizeSpacer(); measureLayout(); });
+      window.addEventListener('keydown', (e) => {
+        const vw = cachedVw;
+        const maxScroll = (panelCount + CHAT_PAGES - 1) * vw;
+        let currentRaw = window.scrollY;
+        
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const stickyStart = PANEL2_INDEX * vw;
+          const stickyEnd   = stickyStart + CHAT_PAGES * vw;
+          const snapPoints: number[] = [];
+          for (let i = 0; i < panelCount; i++) {
+            snapPoints.push(i <= PANEL2_INDEX ? i * vw : i * vw + CHAT_PAGES * vw);
+          }
+          snapPoints.push(stickyStart, stickyEnd);
+          snapPoints.sort((a, b) => a - b);
+          const next = snapPoints.find(p => p > currentRaw + 10) ?? maxScroll;
+          window.scrollTo({ top: Math.min(next, maxScroll), behavior: 'smooth' });
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const stickyStart = PANEL2_INDEX * vw;
+          const stickyEnd   = stickyStart + CHAT_PAGES * vw;
+          const snapPoints: number[] = [];
+          for (let i = 0; i < panelCount; i++) {
+            snapPoints.push(i <= PANEL2_INDEX ? i * vw : i * vw + CHAT_PAGES * vw);
+          }
+          snapPoints.push(stickyStart, stickyEnd);
+          snapPoints.sort((a, b) => b - a);
+          const prev = snapPoints.find(p => p < currentRaw - 10) ?? 0;
+          window.scrollTo({ top: Math.max(prev, 0), behavior: 'smooth' });
+        }
+      });
+
+      // Handle Waitlist jumps
+      document.querySelectorAll('a[href="#start"]').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const maxScroll = (panelCount + CHAT_PAGES - 1) * cachedVw;
+          window.scrollTo({ top: maxScroll, behavior: 'smooth' });
+        });
+      });
+
+      cleanups.push(() => {
+        disposed = true;
+        cancelAnimationFrame(animId);
+        spacer.remove();
+        container.style.position = '';
+        container.style.top = '';
+        container.style.left = '';
+        container.style.width = '';
+        container.style.height = '';
+        container.style.overflow = '';
+        container.style.display = '';
+        container.style.flexWrap = '';
+        container.style.transform = '';
+        document.documentElement.style.removeProperty('--maestro-header-h');
+        document.documentElement.style.removeProperty('--maestro-footer-h');
+      });
+
+      // Scroll Organizer for syllabus items in Panel 3
+      const syllabusItems = document.querySelectorAll<HTMLElement>('.syllabus-item');
+      if (syllabusItems.length > 0) {
+        organizerCleanup = createScrollOrganizer({
+          elements: Array.from(syllabusItems),
+          staggerFactor: 0.03,
+          getScatteredState: () => ({
+            x: 200 + Math.random() * 300,
+            y: -50 + Math.random() * 350,
+            rotation: (Math.random() - 0.5) * 20,
+            opacity: 0.3,
+            scale: 0.95,
+          }),
+          progress: 0,
+        });
+        cleanups.push(organizerCleanup);
+      }
+
+      animId = requestAnimationFrame(tick);
+    }
+
+    function setupMobilePanels() {
+      setupPanel2Mobile();
+      setupPanel3Mobile();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Panel 2 Animation logic (Fade Chat)
+    //
+    // chatProg: 0 → 1 is the progress through the sticky zone.
+    //   0.00 → 0.08 : chat fades in
+    //   0.08 → 0.85 : chat scrolls vertically (translateY drives messages into view)
+    //   0.72 → 0.85 : quote appears
+    //   0.85 → 1.00 : exit blur / fade, then horizontal advance to panel 3 resumes
+    // ─────────────────────────────────────────────────────────────────────────
+    const fadeChat = document.getElementById('fade-chat');
+    const fadeQuote = document.getElementById('fade-quote');
+
+    function revealAllP2Messages() {
+      const allMsgs = fadeChat!.querySelectorAll<HTMLElement>('.chat-user-msg, .chat-ai-msg');
+      allMsgs.forEach((msg) => {
+        msg.style.transition = 'none';
+        msg.style.opacity = msg.dataset.opacity ?? '1';
+        msg.style.transform = 'translateY(0)';
+      });
+    }
+
+    function resetP2Messages() {
+      const allMsgs = fadeChat!.querySelectorAll<HTMLElement>('.chat-user-msg, .chat-ai-msg');
+      allMsgs.forEach((msg) => {
+        msg.style.transition = 'none';
+        msg.style.opacity = '0';
+        msg.style.transform = 'translateY(16px)';
+      });
+    }
+
+    let p2Revealed = false;
+
+    function animatePanel2(chatProg: number) {
+      if (mobileMedia.matches) return;
+      if (!fadeChat || !fadeQuote) return;
+
+      if (chatProg <= 0) {
+        fadeChat.style.opacity = '1';
+        fadeChat.style.transform = 'translateY(0px)';
+        fadeChat.style.filter = 'blur(0px)';
+        fadeQuote.style.opacity = '0';
+        fadeQuote.style.transform = 'translateY(12px)';
+        if (!p2Revealed) {
+          p2Revealed = true;
+          revealAllP2Messages();
+        }
+        return;
+      }
+
+      if (!p2Revealed) {
+        p2Revealed = true;
+        revealAllP2Messages();
+      }
+
+      const SCROLL_START = 0.0;
+      const EXIT_START   = 0.85;
+
+      const visibleH = fadeChat.parentElement?.clientHeight ?? window.innerHeight;
+      const overflow = Math.max(fadeChat.scrollHeight - visibleH, 0);
+
+      let translateY = 0;
+
+      if (chatProg < EXIT_START) {
+        const scrollT = easeOutCubic(clamp((chatProg - SCROLL_START) / (EXIT_START - SCROLL_START), 0, 1));
+        translateY = -(scrollT * overflow);
+      } else {
+        translateY = -overflow;
+      }
+
+      fadeChat.style.opacity = '1';
+      fadeChat.style.transform = `translateY(${translateY}px)`;
+      fadeChat.style.filter = 'blur(0px)';
+
+      if (chatProg > 0.72 && chatProg < EXIT_START) {
+        const quoteT = clamp((chatProg - 0.72) / 0.1, 0, 1);
+        fadeQuote.style.opacity = String(quoteT);
+        fadeQuote.style.transform = `translateY(${lerp(12, 0, quoteT)}px)`;
+      } else if (chatProg >= EXIT_START) {
+        fadeQuote.style.opacity = String(Math.max(1 - (chatProg - EXIT_START) / (1 - EXIT_START), 0));
+      } else {
+        fadeQuote.style.opacity = '0';
+        fadeQuote.style.transform = 'translateY(12px)';
+      }
+    }
+
+    // Panel 3 Animation logic (Shift/Syllabus)
+    let panel3Animated = false;
+    function animatePanel3(panelIndex: number, localProgress: number) {
+      if (mobileMedia.matches) return;
+      if (panelIndex === 1) {
+        if (organizerCleanup?.setProgress) organizerCleanup.setProgress(localProgress);
+        if (!panel3Animated && localProgress > 0.9) {
+          panel3Animated = true;
+          triggerSyllabusAnnotations();
+        }
+      } else if (panelIndex === 2) {
+        if (organizerCleanup?.setProgress) organizerCleanup.setProgress(1.0);
+        if (!panel3Animated) {
+          panel3Animated = true;
+          triggerSyllabusAnnotations();
+        }
+      } else if (panelIndex < 1) {
+        if (panel3Animated) {
+          panel3Animated = false;
+          annotationMarkers.forEach((marker) => {
+            marker.style.opacity = '0';
+            marker.style.transform = 'translateY(2px)';
+          });
+        }
+        if (organizerCleanup?.setProgress) organizerCleanup.setProgress(0);
+      }
+    }
+
+    function triggerSyllabusAnnotations() {
+      setTimeout(() => {
+        annotationMarkers.forEach((marker, i) => {
+          setTimeout(() => {
+            marker.style.transition = 'opacity 800ms ease-out, transform 800ms ease-out';
+            marker.style.opacity = '1';
+            marker.style.transform = 'translateY(0)';
+          }, i * 300);
+        });
+      }, 200);
+    }
+
+    function setupPanel2Mobile() {
+      if (!fadeChat || !fadeQuote) return;
+
+      const panel = fadeChat.closest('.panel') as HTMLElement | null;
+      const ghostTyping = document.getElementById('ghost-typing') as HTMLElement | null;
+      if (!panel) return;
+
+      resetP2Messages();
+      fadeChat.style.opacity = '0';
+      fadeChat.style.transform = 'translateY(24px)';
+      fadeChat.style.filter = 'none';
+      fadeChat.style.transition = 'opacity 700ms ease-out, transform 700ms ease-out';
+      fadeQuote.style.opacity = '0';
+      fadeQuote.style.transform = 'translateY(16px)';
+      if (ghostTyping) {
+        ghostTyping.style.opacity = '0';
+      }
+
+      const observer = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+
+        fadeChat.style.opacity = '1';
+        fadeChat.style.transform = 'translateY(0)';
+
+        const allMsgs = fadeChat.querySelectorAll<HTMLElement>('.chat-user-msg, .chat-ai-msg');
+        allMsgs.forEach((msg, index) => {
+          msg.style.transition = 'opacity 500ms ease-out, transform 500ms ease-out';
+          window.setTimeout(() => {
+            msg.style.opacity = msg.dataset.opacity ?? '1';
+            msg.style.transform = 'translateY(0)';
+          }, index * 90);
+        });
+
+        if (ghostTyping) {
+          window.setTimeout(() => {
+            ghostTyping.style.opacity = '1';
+          }, allMsgs.length * 90 + 100);
+        }
+
+        window.setTimeout(() => {
+          fadeQuote.style.opacity = '1';
+          fadeQuote.style.transform = 'translateY(0)';
+        }, allMsgs.length * 90 + 350);
+
+        observer.unobserve(panel);
+      }, { threshold: 0.3 });
+
+      observer.observe(panel);
+    }
+
+    function setupPanel3Mobile() {
+      const panel = document.getElementById('syllabus-list')?.closest('.panel') as HTMLElement | null;
+      const syllabusItems = document.querySelectorAll<HTMLElement>('.syllabus-item');
+      if (!panel || syllabusItems.length === 0) return;
+
+      syllabusItems.forEach((item) => {
+        item.style.opacity = '0';
+        item.style.transform = 'translateY(18px)';
+      });
+      annotationMarkers.forEach((marker) => {
+        marker.style.opacity = '0';
+        marker.style.transform = 'translateY(8px)';
+      });
+
+      const observer = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+
+        syllabusItems.forEach((item, index) => {
+          item.style.transition = 'opacity 500ms ease-out, transform 500ms ease-out';
+          window.setTimeout(() => {
+            item.style.opacity = '1';
+            item.style.transform = 'translateY(0)';
+          }, index * 60);
+        });
+
+        window.setTimeout(() => {
+          annotationMarkers.forEach((marker, index) => {
+            marker.style.transition = 'opacity 600ms ease-out, transform 600ms ease-out';
+            window.setTimeout(() => {
+              marker.style.opacity = '1';
+              marker.style.transform = 'translateY(0)';
+            }, index * 180);
+          });
+        }, syllabusItems.length * 60 + 80);
+
+        observer.unobserve(panel);
+      }, { threshold: 0.25 });
+
+      observer.observe(panel);
+    }
+
+    function setupWaveforms() {
+      const hero = document.getElementById('waveform-hero') as HTMLCanvasElement;
+      if (hero) cleanups.push(createWaveformVisualizer({ canvas: hero, mode: 'idle', amplitude: 0.6, parallaxStrength: 6, fadeEdges: true }));
+      
+      const lesson = document.getElementById('waveform-lesson') as HTMLCanvasElement;
+      if (lesson) cleanups.push(createWaveformVisualizer({ canvas: lesson, mode: 'active', amplitude: 0.6, fadeEdges: true }));
+
+      const cta = document.getElementById('waveform-cta') as HTMLCanvasElement;
+      if (cta) cleanups.push(createWaveformVisualizer({ canvas: cta, mode: 'active', amplitude: 0.8, fadeEdges: true }));
+    }
+
+    function setupAnnotations() {
+      const philosophyHeadings = document.querySelectorAll<HTMLElement>('[data-annotation-word]');
+      philosophyHeadings.forEach((heading, i) => {
+        const word = heading.dataset.annotationWord;
+        const style = heading.dataset.annotationStyle as any;
+        if (!word) return;
+        const span = wrapWord(heading, word);
+        if (span) {
+          cleanups.push(createAnnotationHighlight({
+            target: span, style, color: '#D97706', wobble: 0.3, strokeWidth: 2.5,
+            duration: 600, delay: i * 200, trigger: 'scroll', scrollOffset: 0.3
+          }));
+        }
+      });
+    }
+
+    function setupTestimonials() {
+      const testimonialCards = document.querySelectorAll<HTMLElement>('.testimonial-card');
+      if (testimonialCards.length > 0) {
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              (entry.target as HTMLElement).style.opacity = '1';
+              (entry.target as HTMLElement).style.transform = 'translateY(0)';
+              (entry.target as HTMLElement).style.transition = 'opacity 600ms ease-out, transform 600ms ease-out';
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.2 });
+        testimonialCards.forEach((card) => observer.observe(card));
+      }
+    }
+
+    function setupPanel4Diagram() {
+      const diagramContainer = document.getElementById('diagram-container');
+      const diagramViewport = document.getElementById('diagram-viewport') as HTMLElement | null;
+      const diagramScaler = document.getElementById('diagram-scaler') as HTMLElement | null;
+      const zoomInButton = document.getElementById('diagram-zoom-in') as HTMLButtonElement | null;
+      const zoomOutButton = document.getElementById('diagram-zoom-out') as HTMLButtonElement | null;
+      const zoomResetButton = document.getElementById('diagram-zoom-reset') as HTMLButtonElement | null;
+      const progressBar = document.getElementById('audio-progress');
+      const timeLabel = document.getElementById('audio-time');
+      const lessonDots = document.querySelectorAll<HTMLElement>('.lesson-dot');
+      if (!diagramContainer) return;
+
+      let isStarted = false;
+      let fakeProgress = 0;
+      const DURATION = 28;
+      const zoomLevels = [1, 1.15, 1.3, 1.5];
+      let currentZoom = 1;
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartScrollLeft = 0;
+
+      const clampZoom = (value: number) => clamp(value, zoomLevels[0], zoomLevels[zoomLevels.length - 1]);
+      const getNearestZoom = (value: number) =>
+        zoomLevels.reduce((nearest, candidate) =>
+          Math.abs(candidate - value) < Math.abs(nearest - value) ? candidate : nearest
+        , zoomLevels[0]);
+
+      function applyZoom(nextZoom: number, anchor?: { x: number; y: number }) {
+        if (!diagramScaler || !diagramViewport) return;
+
+        const previousZoom = currentZoom;
+        currentZoom = clampZoom(nextZoom);
+        diagramScaler.style.transform = `scale(${currentZoom})`;
+
+        const label = `${Math.round(currentZoom * 100)}%`;
+        if (zoomResetButton) zoomResetButton.textContent = label;
+        if (zoomOutButton) zoomOutButton.disabled = currentZoom <= zoomLevels[0];
+        if (zoomInButton) zoomInButton.disabled = currentZoom >= zoomLevels[zoomLevels.length - 1];
+
+        if (!anchor || previousZoom === currentZoom) return;
+
+        const left = (anchor.x + diagramViewport.scrollLeft) / previousZoom;
+        const top = (anchor.y + diagramViewport.scrollTop) / previousZoom;
+        diagramViewport.scrollLeft = left * currentZoom - anchor.x;
+        diagramViewport.scrollTop = top * currentZoom - anchor.y;
+      }
+
+      function stepZoom(direction: 1 | -1, anchor?: { x: number; y: number }) {
+        const nearest = getNearestZoom(currentZoom);
+        const currentIndex = zoomLevels.indexOf(nearest);
+        const nextIndex = clamp(currentIndex + direction, 0, zoomLevels.length - 1);
+        applyZoom(zoomLevels[nextIndex], anchor);
+      }
+
+      if (diagramViewport && diagramScaler) {
+        applyZoom(currentZoom);
+
+        requestAnimationFrame(() => {
+          diagramViewport.scrollLeft = Math.max((diagramViewport.scrollWidth - diagramViewport.clientWidth) / 2, 0);
+          diagramViewport.scrollTop = 0;
+        });
+
+        zoomInButton?.addEventListener('click', () => {
+          const anchor = { x: diagramViewport.clientWidth / 2, y: diagramViewport.clientHeight / 2 };
+          stepZoom(1, anchor);
+        });
+
+        zoomOutButton?.addEventListener('click', () => {
+          const anchor = { x: diagramViewport.clientWidth / 2, y: diagramViewport.clientHeight / 2 };
+          stepZoom(-1, anchor);
+        });
+
+        zoomResetButton?.addEventListener('click', () => {
+          const anchor = { x: diagramViewport.clientWidth / 2, y: diagramViewport.clientHeight / 2 };
+          applyZoom(1, anchor);
+        });
+
+        diagramViewport.addEventListener('wheel', (event) => {
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            const rect = diagramViewport.getBoundingClientRect();
+            const anchor = {
+              x: event.clientX - rect.left,
+              y: event.clientY - rect.top,
+            };
+            stepZoom(event.deltaY < 0 ? 1 : -1, anchor);
+            return;
+          }
+
+          const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+          if (delta === 0) return;
+
+          event.preventDefault();
+          diagramViewport.scrollLeft += delta;
+        }, { passive: false });
+
+        diagramViewport.addEventListener('keydown', (event) => {
+          const anchor = { x: diagramViewport.clientWidth / 2, y: diagramViewport.clientHeight / 2 };
+          if (event.key === '+' || event.key === '=') {
+            event.preventDefault();
+            stepZoom(1, anchor);
+          } else if (event.key === '-' || event.key === '_') {
+            event.preventDefault();
+            stepZoom(-1, anchor);
+          } else if (event.key === '0') {
+            event.preventDefault();
+            applyZoom(1, anchor);
+          }
+        });
+
+        diagramViewport.addEventListener('pointerdown', (event) => {
+          if (event.button !== 0) return;
+          isDragging = true;
+          dragStartX = event.clientX;
+          dragStartScrollLeft = diagramViewport.scrollLeft;
+          diagramViewport.classList.add('is-dragging');
+          diagramViewport.setPointerCapture(event.pointerId);
+        });
+
+        diagramViewport.addEventListener('pointermove', (event) => {
+          if (!isDragging) return;
+          const deltaX = event.clientX - dragStartX;
+          diagramViewport.scrollLeft = dragStartScrollLeft - deltaX;
+        });
+
+        const endDrag = (event: PointerEvent) => {
+          if (!isDragging) return;
+          isDragging = false;
+          diagramViewport.classList.remove('is-dragging');
+          if (diagramViewport.hasPointerCapture(event.pointerId)) {
+            diagramViewport.releasePointerCapture(event.pointerId);
+          }
+        };
+
+        diagramViewport.addEventListener('pointerup', endDrag);
+        diagramViewport.addEventListener('pointercancel', endDrag);
+        diagramViewport.addEventListener('pointerleave', (event) => {
+          if (isDragging) endDrag(event);
+        });
+      }
+
+      const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !isStarted) {
+          isStarted = true;
+          const cleanup = createDiagramDrawer({
+            container: diagramContainer,
+            direction: 'horizontal', connectionStyle: 'stepped', glowIntensity: 0.4,
+            drawSpeed: (DURATION * 1000) / 9, scrollFallback: false, nodeSpacing: { x: 50, y: 20 },
+            nodes: [
+              { id: "input", label: "INPUT\n(28×28×1)", type: "block" },
+              { id: "conv1", label: "Conv_1\nConvolution", subtitle: "5×5 kernel", parentId: "input", type: "stack", bracket: { label: "n1 channels", position: "bottom" } },
+              { id: "pool1", label: "Max-Pool\n(2×2)", parentId: "conv1", type: "block", bracket: { label: "n1 channels", position: "bottom" } },
+              { id: "conv2", label: "Conv_2\nConvolution", subtitle: "5×5 kernel", parentId: "pool1", type: "stack", bracket: { label: "n2 channels", position: "bottom" } },
+              { id: "pool2", label: "Max-Pool\n(2×2)", parentId: "conv2", type: "block", bracket: { label: "n2 channels", position: "bottom" } },
+              { id: "flatten", label: "Flattened", parentId: "pool2", type: "block" },
+              { id: "fc3", label: "fc_3\nFully-Conn", subtitle: "ReLU", parentId: "flatten", type: "network" },
+              { id: "fc4", label: "fc_4\nFully-Conn", subtitle: "Dropout", parentId: "fc3", type: "network", bracket: { label: "n3 units", position: "bottom" } },
+              { id: "output", label: "OUTPUT\n10 classes", parentId: "fc4", type: "network" }
+            ]
+          });
+          cleanups.push(cleanup);
+
+          let interval = setInterval(() => {
+            fakeProgress = Math.min(fakeProgress + 100 / (DURATION * 1000) * 50, 100);
+            const currentSecs = (fakeProgress / 100) * DURATION;
+            if (progressBar) progressBar.style.width = `${fakeProgress}%`;
+            if (timeLabel) timeLabel.textContent = `0:${String(Math.floor(currentSecs)).padStart(2, '0')} / 0:${DURATION}`;
+            lessonDots.forEach(dot => { if (currentSecs >= parseFloat(dot.dataset.timestamp || '0')) dot.classList.add('active'); });
+            if (fakeProgress >= 100) clearInterval(interval);
+          }, 50);
+        }
+      }, { threshold: 0.3 });
+      observer.observe(diagramContainer);
+    }
+
+    // --- Helpers ---
+
+    function wrapWord(el: HTMLElement, word: string): HTMLSpanElement | null {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node: Text | null;
+      while ((node = walker.nextNode() as Text | null)) {
+        const idx = node.textContent?.indexOf(word) ?? -1;
+        if (idx === -1) continue;
+        const before = node.textContent!.slice(0, idx);
+        const after = node.textContent!.slice(idx + word.length);
+        const span = document.createElement('span');
+        span.textContent = word;
+        span.style.position = 'relative';
+        span.style.display = 'inline-block';
+        const parent = node.parentNode!;
+        if (before) parent.insertBefore(document.createTextNode(before), node);
+        parent.insertBefore(span, node);
+        if (after) parent.insertBefore(document.createTextNode(after), node);
+        parent.removeChild(node);
+        return span;
+      }
+      return null;
+    }
+
+    function clamp(val: number, min: number, max: number) { return Math.max(min, Math.min(max, val)); }
+    function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+    function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
+    function easeInCubic(t: number) { return t * t * t; }
+
+    // Init on DOM ready and fonts loaded
+    Promise.all([
+      document.fonts.ready,
+      new Promise(resolve => {
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', resolve);
+        else resolve(null);
+      })
+    ]).then(init);
+  </script>
+</Layout>

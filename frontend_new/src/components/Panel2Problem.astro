@@ -1,0 +1,294 @@
+---
+/**
+ * Panel 2 — The Fade
+ *
+ * A mock AI chat where the human messages progressively shrink, fade, and get lazier,
+ * while AI responses grow longer and denser. The human is literally disappearing
+ * from their own learning process.
+ *
+ * DESIGN CHANGES from v1:
+ *
+ * 1. VISUAL WEIGHT IMBALANCE — AI responses now physically dominate the panel.
+ *    They grow wider (max-w goes from 88% → 95%) and taller as the chat progresses,
+ *    while user messages shrink in width too. This creates a visual "squeeze" effect:
+ *    the human is being pushed out of their own conversation.
+ *
+ * 2. TYPING INDICATOR GHOST — After the last "make it work" message, a ghost typing
+ *    indicator appears on the user side (three fading dots) that never resolves into
+ *    a message. The human has nothing left to say. They've fully outsourced.
+ *
+ * 3. AI MESSAGES LOSE READABILITY — Later AI responses use progressively smaller
+ *    text and tighter line-height. The information is there but nobody is reading it.
+ *    The code block is deliberately dense. This mirrors real behavior: copy, paste, move on.
+ *
+ * 4. SUBTLE AMBER PULSE ON USER MESSAGES — Each user message has a barely-visible
+ *    amber left-border that gets thinner and more transparent with each message.
+ *    It's the "spark of curiosity" dying out.
+ *
+ * 5. TIMESTAMP DRIFT — User message timestamps accelerate. First reply took "2 min",
+ *    later ones are "4s", "1s". The thinking time is collapsing to zero.
+ *
+ * 6. BOTTOM QUOTE — Appears via CSS opacity transition once the chat scroll reaches
+ *    the last message. The quote is NOT italic — it's a plain statement. Serif, warm,
+ *    direct. No quotation marks. This isn't someone else's wisdom; it's a confrontation.
+ *
+ * 7. GRAIN OVERLAY — A subtle CSS noise texture on the panel background adds warmth
+ *    and analog texture. Differentiates from the clean Panels 1 and 3.
+ */
+
+const chatMessages = [
+  {
+    role: 'user',
+    text: "Can you help me understand how gradient descent works? I know basic calculus but I'm not sure how partial derivatives connect to the weight updates",
+    opacity: 1,
+    size: 15,
+    maxW: '78%',
+    borderOpacity: 0.5,
+    borderWidth: 3,
+    timestamp: '2 min to write',
+  },
+  {
+    role: 'ai',
+    text: "Gradient descent adjusts each weight in the direction that reduces loss. The gradient is a vector of partial derivatives — each one measures how much the loss changes when you nudge one weight. The update rule is:\n\nw ← w − α · ∂L/∂w\n\nFollow the slope downhill, scaled by a learning rate.",
+    size: 15,
+    maxW: '82%',
+  },
+  {
+    role: 'user',
+    text: "ok now explain backpropagation",
+    opacity: 0.45,
+    size: 15,
+    maxW: '60%',
+    borderOpacity: 0.25,
+    borderWidth: 2,
+    timestamp: '38s',
+  },
+  {
+    role: 'ai',
+    text: "Backpropagation is the engine that computes those gradients efficiently. It applies the chain rule layer by layer, starting from the output error and propagating backward. For each layer, you compute how much it contributed to the final error, then pass that signal to the layer below.\n\nThe key trick is caching the forward-pass activations so each gradient calculation reuses intermediate results — one backward pass gives you gradients for every single weight in the network simultaneously. Without it, training deep networks would be computationally impossible. The cost of a backward pass is roughly 2× a forward pass, which is remarkably cheap given it solves for millions of gradients at once.",
+    size: 15,
+    maxW: '90%',
+  },
+  {
+    role: 'user',
+    text: "just write the code",
+    opacity: 0.22,
+    size: 15,
+    maxW: '42%',
+    borderOpacity: 0.1,
+    borderWidth: 1,
+    timestamp: '4s',
+  },
+  {
+    role: 'ai',
+    text: "import numpy as np\n\nclass NeuralNet:\n    def __init__(self, dims):\n        self.W = [np.random.randn(d1,d2)*0.01\n                  for d1,d2 in zip(dims,dims[1:])]\n        self.b = [np.zeros((1,d)) for d in dims[1:]]\n\n    def forward(self, X):\n        self.a = [X]\n        for W,b in zip(self.W, self.b):\n            z = self.a[-1] @ W + b\n            self.a.append(np.maximum(0, z))  # ReLU\n        return self.a[-1]\n\n    def backward(self, y_true, lr=0.01):\n        m = len(y_true)\n        dout = self.a[-1] - y_true\n        for i in reversed(range(len(self.W))):\n            dw = self.a[i].T @ dout / m\n            db = np.sum(dout, axis=0, keepdims=True) / m\n            if i > 0:\n                dout = (dout @ self.W[i].T)\n                dout *= (self.a[i] > 0)\n            self.W[i] -= lr * dw\n            self.b[i] -= lr * db\n\n    def train(self, X, y, epochs=1000, lr=0.01):\n        for _ in range(epochs):\n            self.forward(X)\n            self.backward(y, lr)",
+    size: 15,
+    maxW: '95%',
+    isCode: true,
+  },
+  {
+    role: 'user',
+    text: "make it work",
+    opacity: 0.08,
+    size: 15,
+    maxW: '28%',
+    borderOpacity: 0.04,
+    borderWidth: 1,
+    timestamp: '1s',
+  },
+];
+---
+
+<section
+  class="panel relative"
+  role="region"
+  aria-label="The fade — how AI replaces your thinking"
+>
+  <!-- Grain texture overlay for analog warmth -->
+  <div
+    class="absolute inset-0 pointer-events-none z-[1] opacity-[0.035]"
+    style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%270 0 256 256%27 xmlns=%27http://www.w3.org/2000/svg%27%3E%3Cfilter id=%27n%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.9%27 numOctaves=%274%27 stitchTiles=%27stitch%27/%3E%3C/filter%3E%3Crect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23n)%27/%3E%3C/svg%3E'); background-repeat: repeat; background-size: 200px;"
+  ></div>
+
+  <div class="relative z-[2] flex flex-col items-center justify-start h-full w-full overflow-hidden">
+
+    <!-- Chat container -->
+    <div
+      id="fade-chat"
+      class="w-full max-w-[680px] px-6 pt-[8vh] pb-[28vh] flex flex-col gap-5"
+      style="
+        mask-image: linear-gradient(to bottom, transparent 0%, black 6%, black 72%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 6%, black 72%, transparent 100%);
+        opacity: 0;
+      "
+    >
+      {chatMessages.map((msg, i) => (
+        msg.role === 'user' ? (
+          <div
+            class="chat-user-msg self-end flex flex-col items-end"
+            style={`
+              opacity: 0;
+              max-width: ${msg.maxW};
+            `}
+            data-opacity={msg.opacity}
+            data-index={i}
+          >
+            <div
+              class="pl-4 py-2 font-sans leading-snug text-text-primary"
+              style={`
+                font-size: ${msg.size}px;
+                border-left: ${msg.borderWidth}px solid rgba(217, 119, 6, ${msg.borderOpacity});
+              `}
+            >
+              {msg.text}
+            </div>
+            <div class="flex items-center gap-2 mt-1.5 mr-1">
+              <span
+                class="text-[10px] text-text-secondary font-mono"
+                style={`opacity: ${Math.max(msg.opacity * 0.5, 0.12)};`}
+              >
+                {msg.timestamp}
+              </span>
+              <span
+                class="text-[10px] text-text-secondary font-mono"
+                style={`opacity: ${Math.max(msg.opacity * 0.4, 0.1)};`}
+              >
+                You
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div
+            class="chat-ai-msg self-start flex flex-col items-start"
+            style={`
+              opacity: 0;
+              max-width: ${msg.maxW};
+            `}
+            data-opacity="1"
+            data-index={i}
+          >
+            <div
+              class="py-2 font-sans text-text-secondary leading-relaxed"
+              style={`
+                font-size: ${msg.size}px;
+              `}
+            >
+              {msg.isCode ? (
+                <pre
+                  class="whitespace-pre-wrap font-mono text-text-secondary leading-tight m-0 overflow-hidden"
+                  style={`font-size: ${msg.size}px;`}
+                >{msg.text}</pre>
+              ) : (
+                <span class="whitespace-pre-line">{msg.text}</span>
+              )}
+            </div>
+            <span
+              class="text-[10px] text-text-secondary mt-1.5 ml-1 font-mono opacity-30"
+            >
+              ChatGPT
+            </span>
+          </div>
+        )
+      ))}
+
+      <!-- Ghost typing indicator — the human has nothing left to say -->
+      <div
+        id="ghost-typing"
+        class="self-end flex items-center gap-1.5 pr-2 pt-2"
+        style="opacity: 0; transition: opacity 1200ms ease-out;"
+      >
+        <div class="w-[6px] h-[6px] rounded-full bg-amber-600 animate-pulse" style="animation-delay: 0ms; opacity: 0.15;"></div>
+        <div class="w-[6px] h-[6px] rounded-full bg-amber-600 animate-pulse" style="animation-delay: 300ms; opacity: 0.1;"></div>
+        <div class="w-[6px] h-[6px] rounded-full bg-amber-600 animate-pulse" style="animation-delay: 600ms; opacity: 0.06;"></div>
+      </div>
+    </div>
+
+    <!-- Bottom statement — no quotes, no italics, direct confrontation -->
+    <div id="fade-quote-wrap" class="absolute bottom-[7vh] left-0 right-0 flex justify-center px-8 z-[3]">
+      <p
+        id="fade-quote"
+        class="font-serif text-[20px] md:text-[26px] text-text-primary text-center leading-snug max-w-[520px]"
+        style="opacity: 0; transform: translateY(12px); transition: opacity 1000ms ease-out, transform 1000ms ease-out;"
+      >
+        Every question you outsource is a connection your brain never makes.
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  /*
+   * Panel 2 specific animations.
+   * The chat auto-scrolls upward via JS (driven by createHorizontalScroll's onProgress).
+   * These styles handle the per-message reveal and the ghost typing indicator.
+   */
+
+  /* Staggered pulse for ghost typing dots */
+  @keyframes ghost-dot {
+    0%, 100% { opacity: 0.04; transform: scale(0.8); }
+    50% { opacity: 0.18; transform: scale(1); }
+  }
+
+  #ghost-typing div {
+    animation: ghost-dot 2.4s ease-in-out infinite;
+  }
+  #ghost-typing div:nth-child(1) { animation-delay: 0ms; }
+  #ghost-typing div:nth-child(2) { animation-delay: 400ms; }
+  #ghost-typing div:nth-child(3) { animation-delay: 800ms; }
+
+  @media (max-width: 767px) {
+    #fade-chat {
+      max-width: none;
+      padding: 5.5rem 1.25rem 1.5rem;
+      gap: 1rem;
+      mask-image: none !important;
+      -webkit-mask-image: none !important;
+    }
+
+    #fade-chat .chat-user-msg,
+    #fade-chat .chat-ai-msg {
+      max-width: 100% !important;
+    }
+
+    #fade-chat pre {
+      font-size: 13px !important;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    #fade-quote-wrap {
+      position: static;
+      padding: 0 1.25rem 2rem;
+      margin-top: 0.5rem;
+    }
+
+    #fade-quote {
+      max-width: 100%;
+      font-size: 22px;
+    }
+  }
+</style>
+
+<!--
+  JS INTEGRATION NOTES (for the scroll controller):
+
+  This panel does NOT use any maestro-effects canvas effects.
+  It is driven entirely by CSS transitions + JS triggered by
+  createHorizontalScroll's onProgress callback.
+
+  When onProgress fires for Panel 2:
+
+  1. At localProgress 0.0 → fade-chat opacity to 1
+  2. At localProgress 0.0–0.7 → reveal messages sequentially:
+     - For each message, set opacity to its data-opacity and translateY to 0
+     - Stagger: ~120ms between messages
+     - Auto-scroll the chat container upward as messages reveal
+       (translate the chat div by negative Y proportional to progress)
+  3. At localProgress 0.75 → show #ghost-typing (opacity to 1)
+  4. At localProgress 0.85 → show #fade-quote (opacity to 1, translateY to 0)
+  5. At localProgress 0.95–1.0 → begin fading the entire chat to prepare for Panel 3 transition
+
+  The chat container's mask-image handles the top/bottom soft edges.
+  The grain overlay is purely CSS, no JS needed.
+-->

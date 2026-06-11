@@ -1,0 +1,48 @@
+---
+---
+<header
+  data-maestro-header
+  class="fixed top-0 left-0 w-full z-100 border-b border-surface-muted"
+  style="background: rgba(28, 25, 23, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);"
+>
+  <nav class="flex items-center justify-between h-[60px] px-6 md:px-10 max-w-none">
+    <a href="/" class="font-serif text-[22px] text-text-primary tracking-tight no-underline">
+      Maestro
+    </a>
+
+    <div class="hidden md:flex items-center gap-8">
+    </div>
+
+    <div class="flex items-center gap-4">
+      <a
+        href="#start"
+        class="hidden md:inline-flex bg-accent-primary text-bg-primary font-sans text-[15px] font-medium px-5 py-2 rounded-[6px] no-underline hover:bg-accent-glow transition-colors"
+      >
+        Join Waitlist
+      </a>
+
+      <!-- Mobile hamburger -->
+      <button
+        id="mobile-menu-btn"
+        class="md:hidden text-text-secondary hover:text-text-primary p-1"
+        aria-label="Open menu"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18" />
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+  <div id="mobile-menu" class="md:hidden hidden border-t border-surface-muted px-6 pb-4">
+    <a href="#start" class="mt-2 block text-center bg-accent-primary text-bg-primary font-sans text-[15px] font-medium px-5 py-2.5 rounded-[6px] no-underline">Join Waitlist</a>
+  </div>
+</header>
+
+<script>
+  const btn = document.getElementById('mobile-menu-btn');
+  const menu = document.getElementById('mobile-menu');
+  btn?.addEventListener('click', () => {
+    menu?.classList.toggle('hidden');
+  });
+</script>

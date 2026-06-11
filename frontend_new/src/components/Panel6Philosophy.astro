@@ -1,0 +1,40 @@
+---
+const principles = [
+  {
+    heading: 'Maestro asks before it tells.',
+    body: 'Your AI asks probing questions, waits for you to reason, then builds on your answer. Understanding is active, not passive.',
+    annotationWord: 'asks',
+    annotationStyle: 'underline',
+  },
+  {
+    heading: 'Understanding is the metric, not completion.',
+    body: "Maestro doesn't track how many lessons you've clicked through. It tracks whether you can explain what you've learned.",
+    annotationWord: 'Understanding',
+    annotationStyle: 'underline',
+  },
+  {
+    heading: 'Your brain is the product.',
+    body: 'In a world where every AI tool outsources your thinking, Maestro is the tool that makes your thinking sharper.',
+    annotationWord: 'Your brain',
+    annotationStyle: 'highlight',
+  },
+];
+---
+<section class="panel" role="region" aria-label="Our philosophy">
+  <span class="section-label">PHILOSOPHY</span>
+
+  <div class="flex flex-col justify-center h-full w-full px-[12%] md:px-[20%]">
+    <div class="flex flex-col gap-16 md:gap-20">
+      {principles.map((p) => (
+        <div>
+          <h3 class="font-serif text-[28px] md:text-[36px] text-text-primary leading-snug mb-4" data-annotation-word={p.annotationWord} data-annotation-style={p.annotationStyle}>
+            {p.heading}
+          </h3>
+          <p class="font-sans text-[16px] md:text-[17px] text-text-secondary leading-relaxed max-w-[560px]">
+            {p.body}
+          </p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

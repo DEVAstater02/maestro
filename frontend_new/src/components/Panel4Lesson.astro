@@ -1,0 +1,376 @@
+---
+/**
+ * Panel 4 — The Live Lesson
+ *
+ * DESIGN CHANGES from v1:
+ *
+ * 1. CONTEXTUAL HEADER — A small prompt line at the top shows what the learner asked:
+ *    "Teach me how convolutional neural networks work."
+ *    This grounds the demo. The visitor understands: someone asked a question,
+ *    and THIS is what Maestro did with it. Not a wall of text — a structured lesson.
+ *
+ * 2. DIAGRAM IS PRIMARY — The right zone is now 65%, not 50/50. The diagram IS the product.
+ *    The waveform and audio player are secondary — they're the medium, not the message.
+ *    The visual hierarchy is: diagram > heading > audio > waveform.
+ *
+ * 3. LEFT ZONE RESTRUCTURED — Heading text sits at the top of the left column:
+ *    "Watch Maestro teach." in serif. Below it, a small subline:
+ *    "Play the audio. The diagram builds as Maestro explains."
+ *    Then the waveform. Then the audio player. The reading order matches the action order.
+ *
+ * 4. DIAGRAM CONTAINER HAS DEPTH — A very subtle inner shadow and slightly elevated
+ *    background (stone-800 instead of transparent) make the diagram zone feel like
+ *    a whiteboard or canvas. This reinforces: Maestro draws while it teaches.
+ *
+ * 5. NODE LEGEND — A small, quiet legend below the diagram shows what the node types
+ *    mean (Input, Convolution, Pooling, Fully Connected). Appears after diagram is
+ *    partially drawn. Helps non-ML visitors follow along.
+ *
+ * 6. PROGRESS INDICATOR — Small dots below the audio player representing lesson
+ *    sections. As the audio progresses and nodes draw, dots fill with amber.
+ *    Shows: this is structured, this has progression, this is a real lesson.
+ *
+ * 7. SCROLL-FALLBACK HINT — If the visitor hasn't pressed play after 3 seconds on
+ *    this panel, a subtle text appears: "Or just scroll — the diagram builds as you go."
+ *    Fades out once they either play audio or scroll past 10% progress.
+ */
+
+/**
+ * Diagram progress sections — maps audio timestamps to lesson milestones.
+ * Used for the progress dots and for the scroll-fallback node drawing.
+ */
+const lessonSections = [
+  { label: 'Input', timestamp: 2 },
+  { label: 'Convolution', timestamp: 5 },
+  { label: 'Pooling', timestamp: 11 },
+  { label: 'Deep layers', timestamp: 16 },
+  { label: 'Flatten', timestamp: 24 },
+  { label: 'Classification', timestamp: 28 },
+];
+---
+
+<section
+  class="panel relative"
+  role="region"
+  aria-label="Live lesson demo — watch Maestro teach"
+>
+  <span class="section-label">LIVE LESSON</span>
+
+  <div class="flex flex-col md:flex-row items-stretch w-full h-full px-6 md:px-12 lg:px-16 py-12 md:py-16 gap-8 md:gap-12">
+
+    <!-- ═══════════════════════════════════════════════
+         LEFT ZONE (35%) — Context, audio, waveform
+         ═══════════════════════════════════════════════ -->
+    <div class="flex flex-col w-full md:w-[35%] justify-center gap-8">
+
+      <!-- Lesson context -->
+      <div class="flex flex-col gap-3">
+        <h2 class="font-serif text-[32px] md:text-[38px] text-text-primary leading-tight">
+          Watch Maestro teach.
+        </h2>
+        <p class="font-sans text-[15px] text-text-secondary leading-relaxed max-w-[360px]">
+          The diagram builds as Maestro explains each layer.
+        </p>
+      </div>
+
+      <!-- The learner's original prompt -->
+      <div class="w-full">
+        <input 
+          type="text" 
+          readonly 
+          value="Teach me how convolutional neural networks work." 
+          class="w-full bg-transparent border border-stone-600 text-text-primary font-sans text-[14px] px-4 py-3 rounded-lg outline-none cursor-default"
+        />
+      </div>
+
+      <!-- Waveform -->
+      <canvas
+        id="waveform-lesson"
+        class="w-full h-[120px] md:h-[160px]"
+        aria-label="Active lesson waveform visualization"
+      ></canvas>
+
+      <!-- Custom progress visualizer (no audio play button) -->
+      <div class="flex items-center gap-4">
+
+        <div class="flex-1 flex flex-col gap-2">
+          <!-- Progress bar -->
+          <div class="relative h-[3px] bg-surface-muted rounded-full overflow-hidden">
+            <div
+              id="audio-progress"
+              class="absolute left-0 top-0 h-full bg-accent-primary rounded-full"
+              style="width: 0%; transition: width 100ms linear;"
+            ></div>
+          </div>
+
+          <!-- Time + section dots -->
+          <div class="flex items-center justify-between">
+            <span id="audio-time" class="font-mono text-[12px] text-text-secondary">
+              0:00 / 0:52
+            </span>
+
+            <!-- Lesson section progress dots -->
+            <div class="flex items-center gap-1.5">
+              {lessonSections.map((section, i) => (
+                <div
+                  class="lesson-dot w-[6px] h-[6px] rounded-full bg-surface-muted transition-colors duration-500"
+                  data-section-index={i}
+                  data-timestamp={section.timestamp}
+                  title={section.label}
+                ></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scroll fallback hint — shown if no audio interaction after 3s -->
+      <p
+        id="scroll-fallback-hint"
+        class="font-sans text-[13px] text-text-secondary text-center md:text-left"
+        style="opacity: 0; transition: opacity 800ms ease-out;"
+      >
+        Or just scroll — the diagram builds as you go.
+      </p>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════
+         RIGHT ZONE (65%) — The diagram canvas
+         ═══════════════════════════════════════════════ -->
+    <div class="flex-1 flex flex-col gap-4 min-h-[350px]">
+
+      <!-- Diagram whiteboard surface -->
+      <div
+        class="flex-1 relative rounded-2xl overflow-hidden min-h-[420px]"
+        style="
+          background: rgba(41, 37, 36, 0.6);
+          border: 1px solid rgba(68, 64, 60, 0.5);
+          box-shadow: inset 0 2px 12px rgba(0, 0, 0, 0.15);
+        "
+      >
+        <div class="diagram-toolbar absolute top-4 left-4 z-20 flex items-center gap-2">
+          <button
+            id="diagram-zoom-out"
+            type="button"
+            class="diagram-control-btn"
+            aria-label="Zoom out on the whiteboard"
+          >
+            -
+          </button>
+          <button
+            id="diagram-zoom-reset"
+            type="button"
+            class="diagram-control-btn diagram-control-btn-wide"
+            aria-label="Reset whiteboard zoom"
+          >
+            100%
+          </button>
+          <button
+            id="diagram-zoom-in"
+            type="button"
+            class="diagram-control-btn"
+            aria-label="Zoom in on the whiteboard"
+          >
+            +
+          </button>
+        </div>
+
+        <div
+          id="diagram-viewport"
+          class="diagram-viewport h-full"
+          tabindex="0"
+          aria-label="Scrollable whiteboard viewport"
+        >
+          <div id="diagram-scaler" class="diagram-scaler">
+            <div
+              id="diagram-container"
+              class="diagram-stage"
+              aria-label="Architecture diagram — builds progressively as lesson plays"
+            ></div>
+          </div>
+        </div>
+
+        <p class="diagram-instructions absolute bottom-4 left-4 z-20 font-mono text-[10px] uppercase tracking-[0.18em] text-text-secondary">
+          Drag or scroll sideways to pan. Use +/- to zoom.
+        </p>
+
+        <!-- Subtle corner label -->
+        <span
+          class="absolute top-4 right-4 font-mono text-[10px] text-text-secondary uppercase tracking-widest"
+          style="opacity: 0.3;"
+        >
+          whiteboard
+        </span>
+      </div>
+
+      <!-- Node type legend — appears after diagram starts drawing -->
+      <div
+        id="diagram-legend"
+        class="flex items-center justify-center gap-6 px-4 py-2"
+        style="opacity: 0; transition: opacity 600ms ease-out;"
+      >
+        <div class="flex items-center gap-2">
+          <div
+            class="w-4 h-3 rounded-sm"
+            style="background: rgba(217, 119, 6, 0.15); border: 1px solid rgba(217, 119, 6, 0.3);"
+          ></div>
+          <span class="font-mono text-[10px] text-text-secondary">Input / Output</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex -space-x-[2px]">
+            <div class="w-3 h-3 rounded-sm bg-surface-muted border border-stone-600" style="opacity: 0.5;"></div>
+            <div class="w-3 h-3 rounded-sm bg-surface-muted border border-stone-600" style="opacity: 0.7;"></div>
+            <div class="w-3 h-3 rounded-sm bg-surface-muted border border-stone-600"></div>
+          </div>
+          <span class="font-mono text-[10px] text-text-secondary">Feature maps</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-4 h-3 rounded-sm bg-surface-muted border border-stone-600"></div>
+          <span class="font-mono text-[10px] text-text-secondary">Operation</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-[2px]">
+            <div class="w-[3px] h-[3px] rounded-full bg-stone-400"></div>
+            <div class="w-[3px] h-[3px] rounded-full bg-stone-400"></div>
+          </div>
+          <span class="font-mono text-[10px] text-text-secondary">Fully connected</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Active lesson dot — filled amber when that section has been reached */
+  .lesson-dot.active {
+    background-color: #D97706;
+    box-shadow: 0 0 6px rgba(217, 119, 6, 0.4);
+  }
+
+  .diagram-viewport {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable both-edges;
+    padding: 4.5rem 2rem 3.5rem;
+    touch-action: pan-x pinch-zoom;
+    box-sizing: border-box;
+    cursor: grab;
+  }
+
+  .diagram-viewport:active,
+  .diagram-viewport.is-dragging {
+    cursor: grabbing;
+  }
+
+  .diagram-scaler {
+    display: inline-block;
+    min-width: 100%;
+    min-height: 100%;
+    transform-origin: top left;
+    transition: transform 180ms ease-out;
+    vertical-align: top;
+  }
+
+  .diagram-stage {
+    width: 1400px;
+    height: 720px;
+  }
+
+  .diagram-toolbar {
+    backdrop-filter: blur(12px);
+  }
+
+  .diagram-control-btn {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(120, 113, 108, 0.6);
+    background: rgba(28, 25, 23, 0.78);
+    color: #FAFAF9;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  .diagram-control-btn:hover,
+  .diagram-control-btn:focus-visible {
+    background: rgba(68, 64, 60, 0.88);
+    border-color: rgba(217, 119, 6, 0.65);
+    outline: none;
+  }
+
+  .diagram-control-btn:active {
+    transform: scale(0.96);
+  }
+
+  .diagram-control-btn-wide {
+    width: auto;
+    min-width: 4.25rem;
+    padding: 0 0.75rem;
+  }
+
+  .diagram-control-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .diagram-instructions {
+    opacity: 0.72;
+    pointer-events: none;
+  }
+
+  @media (max-width: 767px) {
+    .diagram-viewport {
+      padding: 4.5rem 1rem 3.5rem;
+    }
+
+    .diagram-stage {
+      width: 1100px;
+      height: 620px;
+    }
+  }
+</style>
+
+<!--
+  JS INTEGRATION NOTES:
+
+  This panel uses TWO maestro-effects:
+    1. createWaveformVisualizer on #waveform-lesson (mode: 'active')
+    2. createDiagramDrawer on #diagram-container
+
+  createDiagramDrawer is initialized with:
+    - nodes: CNN architecture from the design doc example
+    - direction: 'horizontal'
+    - connectionStyle: 'stepped'
+    - connectionArrows: true
+    - audioElement: the hidden <audio> element
+    - scrollFallback: true
+
+  Audio play/pause wiring:
+    - #audio-play-btn toggles play/pause on the <audio> element
+    - Swap #play-icon / #pause-icon visibility
+    - Update #audio-progress width on timeupdate
+    - Update #audio-time on timeupdate
+    - Switch waveform mode to 'active' on play, 'listening' on pause
+
+  Section dots:
+    - On audio timeupdate, check each .lesson-dot's data-timestamp
+    - If audio.currentTime >= timestamp, add .active class
+    - On scroll-fallback, map scroll progress to timestamps
+
+  Legend:
+    - Show #diagram-legend (opacity 1) once the first onNodeDrawn fires
+
+  Scroll fallback hint:
+    - Show after 3s on this panel if audio hasn't been played
+    - Hide once audio plays or scroll progress > 0.1
+
+  Hidden audio element (add to page layout, not in this panel):
+    <audio id="lesson-audio" preload="none" src="/audio/cnn-lesson-demo.opus"></audio>
+-->

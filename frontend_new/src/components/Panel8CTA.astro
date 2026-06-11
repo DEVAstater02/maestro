@@ -1,0 +1,115 @@
+---
+---
+<section class="panel" role="region" aria-label="Start learning" id="start">
+  <div class="flex flex-col items-center justify-center text-center w-full h-full px-6">
+    <h2 class="font-serif text-[40px] md:text-[56px] text-text-primary leading-tight mb-10">
+      Start your first lesson soon.
+    </h2>
+
+    <canvas
+      id="waveform-cta"
+      class="w-full max-w-[700px] h-[25vh] md:h-[30vh] mb-10"
+      aria-label="Active waveform visualization"
+    ></canvas>
+
+    <form
+      id="waitlist-form"
+      class="waitlist-form"
+      data-testid="waitlist-form"
+      novalidate
+    >
+      <label class="sr-only" for="waitlist-email">Email address</label>
+      <input
+        id="waitlist-email"
+        name="email"
+        type="email"
+        inputmode="email"
+        autocomplete="email"
+        placeholder="you@example.com"
+        required
+        class="waitlist-input"
+      />
+      <button
+        type="submit"
+        class="waitlist-button"
+      >
+        Join waitlist
+      </button>
+    </form>
+
+    <p
+      id="waitlist-status"
+      class="font-sans text-[14px] text-text-secondary min-h-[22px] mb-4"
+      role="status"
+      aria-live="polite"
+    ></p>
+
+
+  </div>
+</section>
+
+<script>
+  import { createClient } from '@supabase/supabase-js';
+
+  const form = document.getElementById('waitlist-form') as HTMLFormElement | null;
+  const emailInput = document.getElementById('waitlist-email') as HTMLInputElement | null;
+  const status = document.getElementById('waitlist-status');
+  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+  const supabase = supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
+
+  function setStatus(message: string, tone: 'neutral' | 'success' | 'error' = 'neutral') {
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.tone = tone;
+  }
+
+  function normalizeEmail(value: string) {
+    return value.trim().toLowerCase();
+  }
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const email = normalizeEmail(emailInput?.value ?? '');
+    if (!emailInput?.checkValidity() || !email) {
+      emailInput?.focus();
+      setStatus('Enter a valid email to join.', 'error');
+      return;
+    }
+
+    if (!supabase) {
+      setStatus('Supabase is not configured yet. Add your public env vars to enable signups.', 'error');
+      return;
+    }
+
+    const submitButton = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    submitButton?.setAttribute('disabled', 'true');
+    setStatus('Adding you to the list...', 'neutral');
+
+    const { error } = await supabase
+      .from('waitlist')
+      .insert({
+        email,
+        source: 'maestro-landing',
+      });
+
+    submitButton?.removeAttribute('disabled');
+
+    if (error) {
+      if (error.code === '23505') {
+        setStatus("You're already on the waitlist.", 'success');
+        form.reset();
+        return;
+      }
+
+      setStatus('Something went wrong. Try again in a moment.', 'error');
+      return;
+    }
+
+    setStatus("You're on the waitlist. We'll be in touch.", 'success');
+    form.reset();
+  });
+</script>

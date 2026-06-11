@@ -1,0 +1,125 @@
+---
+const rotations = [-2, 1.5, -1, 2, -1.5, 1];
+---
+<section class="panel" role="region" aria-label="Visual learning aids">
+  <div class="flex flex-col items-start justify-center h-full w-full px-[8%] md:px-[12%]">
+    <h2
+      id="visual-heading"
+      class="font-serif text-[32px] md:text-[40px] text-text-primary leading-snug mb-14 max-w-[700px]"
+      data-annotation-word="draws"
+      data-annotation-style="underline"
+    >
+      Your tutor draws on the whiteboard while it teaches.
+    </h2>
+
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-5 md:gap-6 w-full max-w-[900px]">
+
+      <!-- Mind Map -->
+      <div class="artifact-card bg-bg-panel border border-surface-muted rounded-[12px] p-5 md:p-6 flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px]" style={`transform: rotate(${rotations[0]}deg);`}>
+        <svg class="w-24 h-20 mb-4" viewBox="0 0 96 80">
+          <circle cx="48" cy="40" r="8" fill="#D97706" class="animate-pulse" />
+          <circle cx="20" cy="18" r="5" fill="#92400E" />
+          <circle cx="76" cy="18" r="5" fill="#92400E" />
+          <circle cx="20" cy="62" r="5" fill="#92400E" />
+          <circle cx="76" cy="62" r="5" fill="#92400E" />
+          <line x1="43" y1="35" x2="24" y2="22" stroke="#92400E" stroke-width="1.5" opacity="0.6" />
+          <line x1="53" y1="35" x2="72" y2="22" stroke="#92400E" stroke-width="1.5" opacity="0.6" />
+          <line x1="43" y1="45" x2="24" y2="58" stroke="#92400E" stroke-width="1.5" opacity="0.6" />
+          <line x1="53" y1="45" x2="72" y2="58" stroke="#92400E" stroke-width="1.5" opacity="0.6" />
+        </svg>
+        <span class="font-mono text-[12px] text-text-secondary tracking-wider">MIND MAP</span>
+      </div>
+
+      <!-- Flowchart -->
+      <div class="artifact-card bg-bg-panel border border-surface-muted rounded-[12px] p-5 md:p-6 flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px]" style={`transform: rotate(${rotations[1]}deg);`}>
+        <svg class="w-24 h-20 mb-4" viewBox="0 0 96 80">
+          <rect x="30" y="4" width="36" height="18" rx="3" fill="none" stroke="#D97706" stroke-width="1.5" />
+          <line x1="48" y1="22" x2="48" y2="30" stroke="#92400E" stroke-width="1.5" />
+          <polygon points="48,30 36,42 48,54 60,42" fill="none" stroke="#D97706" stroke-width="1.5" />
+          <line x1="48" y1="54" x2="48" y2="62" stroke="#92400E" stroke-width="1.5" />
+          <rect x="30" y="62" width="36" height="14" rx="3" fill="none" stroke="#D97706" stroke-width="1.5" />
+          <text x="48" y="16" text-anchor="middle" fill="#A8A29E" font-size="7" font-family="monospace">start</text>
+          <text x="48" y="44" text-anchor="middle" fill="#A8A29E" font-size="6" font-family="monospace">check</text>
+          <text x="48" y="72" text-anchor="middle" fill="#A8A29E" font-size="7" font-family="monospace">end</text>
+        </svg>
+        <span class="font-mono text-[12px] text-text-secondary tracking-wider">FLOWCHART</span>
+      </div>
+
+      <!-- Annotated Diagram -->
+      <div class="artifact-card bg-bg-panel border border-surface-muted rounded-[12px] p-5 md:p-6 flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px]" style={`transform: rotate(${rotations[2]}deg);`}>
+        <svg class="w-24 h-20 mb-4" viewBox="0 0 96 80">
+          <rect x="28" y="20" width="40" height="40" rx="4" fill="none" stroke="#44403C" stroke-width="1.5" />
+          <line x1="28" y1="36" x2="68" y2="36" stroke="#44403C" stroke-width="0.8" stroke-dasharray="2,2" />
+          <line x1="48" y1="20" x2="48" y2="60" stroke="#44403C" stroke-width="0.8" stroke-dasharray="2,2" />
+          {/* Annotation lines */}
+          <line x1="68" y1="28" x2="82" y2="16" stroke="#D97706" stroke-width="1" />
+          <text x="83" y="16" fill="#D97706" font-size="6" font-family="monospace">A</text>
+          <line x1="38" y1="60" x2="22" y2="72" stroke="#D97706" stroke-width="1" />
+          <text x="14" y="74" fill="#D97706" font-size="6" font-family="monospace">B</text>
+        </svg>
+        <span class="font-mono text-[12px] text-text-secondary tracking-wider">ANNOTATED DIAGRAM</span>
+      </div>
+
+      <!-- Comparison Table -->
+      <div class="artifact-card bg-bg-panel border border-surface-muted rounded-[12px] p-5 md:p-6 flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px]" style={`transform: rotate(${rotations[3]}deg);`}>
+        <svg class="w-24 h-20 mb-4" viewBox="0 0 96 80">
+          <rect x="12" y="10" width="72" height="60" rx="3" fill="none" stroke="#44403C" stroke-width="1.2" />
+          <line x1="48" y1="10" x2="48" y2="70" stroke="#44403C" stroke-width="1" />
+          <line x1="12" y1="26" x2="84" y2="26" stroke="#44403C" stroke-width="1" />
+          <text x="30" y="21" text-anchor="middle" fill="#D97706" font-size="7" font-family="monospace">A</text>
+          <text x="66" y="21" text-anchor="middle" fill="#D97706" font-size="7" font-family="monospace">B</text>
+          {/* Highlight row */}
+          <rect x="13" y="38" width="34" height="12" rx="1" fill="#D97706" opacity="0.12" />
+          <line x1="20" y1="36" x2="38" y2="36" stroke="#A8A29E" stroke-width="0.8" />
+          <line x1="56" y1="36" x2="74" y2="36" stroke="#A8A29E" stroke-width="0.8" />
+          <line x1="20" y1="48" x2="38" y2="48" stroke="#A8A29E" stroke-width="0.8" />
+          <line x1="56" y1="48" x2="74" y2="48" stroke="#A8A29E" stroke-width="0.8" />
+          <line x1="20" y1="58" x2="38" y2="58" stroke="#A8A29E" stroke-width="0.8" />
+          <line x1="56" y1="58" x2="74" y2="58" stroke="#A8A29E" stroke-width="0.8" />
+        </svg>
+        <span class="font-mono text-[12px] text-text-secondary tracking-wider">COMPARISON TABLE</span>
+      </div>
+
+      <!-- Dependency Tree -->
+      <div class="artifact-card bg-bg-panel border border-surface-muted rounded-[12px] p-5 md:p-6 flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px]" style={`transform: rotate(${rotations[4]}deg);`}>
+        <svg class="w-24 h-20 mb-4" viewBox="0 0 96 80">
+          <circle cx="48" cy="12" r="6" fill="#D97706" />
+          <line x1="44" y1="17" x2="28" y2="34" stroke="#92400E" stroke-width="1.2" />
+          <line x1="52" y1="17" x2="68" y2="34" stroke="#92400E" stroke-width="1.2" />
+          <circle cx="28" cy="38" r="5" fill="#92400E" />
+          <circle cx="68" cy="38" r="5" fill="#92400E" />
+          <line x1="24" y1="42" x2="16" y2="56" stroke="#92400E" stroke-width="1" opacity="0.6" />
+          <line x1="32" y1="42" x2="40" y2="56" stroke="#92400E" stroke-width="1" opacity="0.6" />
+          <line x1="64" y1="42" x2="56" y2="56" stroke="#92400E" stroke-width="1" opacity="0.6" />
+          <line x1="72" y1="42" x2="80" y2="56" stroke="#92400E" stroke-width="1" opacity="0.6" />
+          <circle cx="16" cy="60" r="4" fill="#44403C" />
+          <circle cx="40" cy="60" r="4" fill="#44403C" />
+          <circle cx="56" cy="60" r="4" fill="#44403C" />
+          <circle cx="80" cy="60" r="4" fill="#44403C" />
+        </svg>
+        <span class="font-mono text-[12px] text-text-secondary tracking-wider">DEPENDENCY TREE</span>
+      </div>
+
+      <!-- Timeline -->
+      <div class="artifact-card bg-bg-panel border border-surface-muted rounded-[12px] p-5 md:p-6 flex flex-col items-center justify-center min-h-[160px] md:min-h-[200px]" style={`transform: rotate(${rotations[5]}deg);`}>
+        <svg class="w-24 h-20 mb-4" viewBox="0 0 96 80">
+          <line x1="10" y1="40" x2="86" y2="40" stroke="#44403C" stroke-width="1.5" />
+          {/* Milestone markers */}
+          <circle cx="20" cy="40" r="4" fill="#D97706" />
+          <circle cx="40" cy="40" r="4" fill="#D97706" />
+          <circle cx="60" cy="40" r="4" fill="#92400E" />
+          <circle cx="80" cy="40" r="3" fill="#44403C" stroke="#92400E" stroke-width="1" />
+          {/* Labels */}
+          <text x="20" y="28" text-anchor="middle" fill="#A8A29E" font-size="6" font-family="monospace">W1</text>
+          <text x="40" y="28" text-anchor="middle" fill="#A8A29E" font-size="6" font-family="monospace">W2</text>
+          <text x="60" y="28" text-anchor="middle" fill="#A8A29E" font-size="6" font-family="monospace">W3</text>
+          <text x="80" y="28" text-anchor="middle" fill="#A8A29E" font-size="6" font-family="monospace">W4</text>
+          {/* Progress fill */}
+          <line x1="10" y1="40" x2="50" y2="40" stroke="#D97706" stroke-width="2.5" stroke-linecap="round" />
+        </svg>
+        <span class="font-mono text-[12px] text-text-secondary tracking-wider">TIMELINE</span>
+      </div>
+
+    </div>
+  </div>
+</section>

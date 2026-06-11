@@ -1,0 +1,172 @@
+@import "tailwindcss";
+@source "../**/*.{astro,html,js,jsx,ts,tsx}";
+@import "@fontsource/newsreader/400.css";
+@import "@fontsource/newsreader/700.css";
+@import "@fontsource/source-sans-3/400.css";
+@import "@fontsource/source-sans-3/700.css";
+@import "@fontsource/dm-mono/400.css";
+@import "@fontsource/caveat/400.css";
+
+@theme {
+  --color-bg-primary: #1C1917;
+  --color-bg-panel: #292524;
+  --color-text-primary: #FAFAF9;
+  --color-text-secondary: #A8A29E;
+  --color-accent-primary: #D97706;
+  --color-accent-glow: #F59E0B;
+  --color-accent-subtle: #FEF3C7;
+  --color-surface-muted: #44403C;
+
+  --font-serif: "Newsreader", serif;
+  --font-sans: "Source Sans 3", sans-serif;
+  --font-mono: "DM Mono", monospace;
+  --font-hand: "Caveat", cursive;
+}
+
+html {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.waitlist-form {
+  display: flex;
+  width: min(100%, 560px);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.waitlist-input,
+.waitlist-button {
+  height: 56px;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 18px;
+}
+
+.waitlist-input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--color-surface-muted);
+  background: color-mix(in srgb, var(--color-bg-panel) 86%, black);
+  color: var(--color-text-primary);
+  padding: 0 18px;
+  outline: none;
+}
+
+.waitlist-input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.waitlist-input:focus {
+  border-color: var(--color-accent-glow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-glow) 24%, transparent);
+}
+
+.waitlist-button {
+  flex: 0 0 auto;
+  border: 0;
+  background: var(--color-accent-primary);
+  color: var(--color-bg-primary);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0 28px;
+  transition: background-color 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+
+.waitlist-button:hover {
+  background: var(--color-accent-glow);
+  transform: translateY(-1px);
+}
+
+.waitlist-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
+}
+
+[data-tone="success"] {
+  color: var(--color-accent-subtle);
+}
+
+[data-tone="error"] {
+  color: #FCA5A5;
+}
+
+/* Panel base */
+.panel {
+  width: 100vw;
+  min-width: 100vw;
+  height: 100%;
+  flex-shrink: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Section labels */
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  position: absolute;
+  top: 32px;
+  left: 40px;
+}
+
+/* Scroll indicator pulse */
+@keyframes fade-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+.scroll-indicator {
+  animation: fade-pulse 3s ease-in-out infinite;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .scroll-indicator { animation: none; opacity: 0.6; }
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* Mobile: stack panels vertically */
+@media (max-width: 767px) {
+  .panel {
+    width: 100%;
+    min-width: 100%;
+    min-height: 100vh;
+    height: auto;
+  }
+
+  .waitlist-form {
+    flex-direction: column;
+  }
+
+  .waitlist-button {
+    width: 100%;
+  }
+}

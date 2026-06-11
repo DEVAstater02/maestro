@@ -1,0 +1,62 @@
+---
+const testimonials = [
+  {
+    quote: "Three weeks ago I couldn't read a research paper. Maestro built me a custom path from linear algebra through backprop to attention mechanisms. I just implemented a transformer from scratch.",
+    name: 'Priya K.',
+    role: 'Self-taught ML engineer',
+    topics: ['Linear Algebra', 'Backpropagation', 'Attention', 'Transformers', 'Implementation'],
+  },
+  {
+    quote: "I've tried every coding tutorial out there. Maestro was the first thing that actually made me stop and think instead of just copying code. I finally understand recursion.",
+    name: 'Marcus T.',
+    role: 'Career switcher, ex-finance',
+    topics: ['Data Structures', 'Recursion', 'Problem Solving', 'Algorithms', 'Debugging'],
+  },
+  {
+    quote: "As a grad student, I needed to quickly get up to speed on distributed systems. Maestro created a syllabus that connected to what I already knew from OS courses. Best tutor I've had.",
+    name: 'Aisha R.',
+    role: 'CS graduate student',
+    topics: ['Distributed Systems', 'Consensus', 'Replication', 'Fault Tolerance', 'CAP Theorem'],
+  },
+];
+---
+<section class="panel" role="region" aria-label="Learning outcomes">
+  <span class="section-label">OUTCOMES</span>
+
+  <div class="flex flex-col md:flex-row items-center justify-center h-full w-full px-6 md:px-16 gap-6 md:gap-10 pt-16 md:pt-0">
+    {testimonials.map((t) => (
+      <div class="testimonial-card bg-bg-panel rounded-[12px] p-7 md:p-9 max-w-[360px] w-full border border-surface-muted/60 opacity-0 translate-y-3">
+        <blockquote class="font-sans text-[15px] md:text-[16px] text-text-primary leading-[1.7] mb-6">
+          &ldquo;{t.quote}&rdquo;
+        </blockquote>
+
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-8 h-8 rounded-full bg-accent-primary/20 flex items-center justify-center flex-shrink-0">
+            <span class="font-sans text-[13px] font-bold text-accent-primary">{t.name.charAt(0)}</span>
+          </div>
+          <div>
+            <span class="block font-sans text-[14px] text-text-primary font-medium">{t.name}</span>
+            <span class="block font-sans text-[13px] text-text-secondary">{t.role}</span>
+          </div>
+        </div>
+
+        <!-- Syllabus thumbnail -->
+        <div class="border-t border-surface-muted/40 pt-5">
+          <span class="font-mono text-[10px] text-text-secondary/60 tracking-widest uppercase mb-3 block">Syllabus</span>
+          <div class="relative flex flex-col gap-0">
+            {t.topics.map((topic, i) => (
+              <div class="flex items-start gap-3 relative">
+                {/* Vertical connector line */}
+                {i < t.topics.length - 1 && (
+                  <div class="absolute left-[5px] top-[12px] w-[1px] h-full bg-surface-muted/50"></div>
+                )}
+                <div class="w-[11px] h-[11px] rounded-full border-2 border-accent-primary/60 flex-shrink-0 mt-[5px] bg-bg-panel relative z-10"></div>
+                <span class="font-sans text-[13px] text-text-secondary py-1">{topic}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
